@@ -4,6 +4,7 @@
 # dependencies = [
 #   "click",
 #   "dycw-utilities",
+#   "pydantic-settings",
 #   "pytest-xdist",
 #   "tomlkit",
 # ]
