@@ -4,9 +4,9 @@
 # dependencies = [
 #   "click",
 #   "dycw-utilities",
-#   "pydantic-settings",
 #   "pytest-xdist",
 #   "tomlkit",
+#   "typed-settings[click]",
 # ]
 # ///
 from __future__ import annotations
@@ -17,13 +17,20 @@ from pathlib import Path
 from click import command, option
 from tomlkit import dumps, parse
 from tomlkit.container import Container
+from typed_settings import click_options, settings
 from utilities.click import CONTEXT_SETTINGS_HELP_OPTION_NAMES
 from utilities.logging import basic_config
 
 _LOGGER = getLogger(__name__)
 
 
+@settings()
+class Settings:
+    pyproject_build_system: bool = False
+
+
 @command(**CONTEXT_SETTINGS_HELP_OPTION_NAMES)
+@click_options(Settings, "example")
 @option(
     "--pyproject-build-system/--no-pyproject-build-system",
     default=False,
