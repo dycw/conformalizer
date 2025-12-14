@@ -24,20 +24,19 @@ repos:
             --option,
             reorder_keys=true,
           ]
+  - repo: https://github.com/dycw/pre-commit-hook-nitpick
+    rev: 0.1.13
+    hooks:
+      - id: nitpick
   - repo: https://github.com/dycw/pre-commit-hooks
     rev: 0.13.26
     hooks:
       - id: replace-sequence-str
-      - id: run-bump-my-version
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.12.0-2
     hooks:
       - id: shfmt
   # linters
-  # - repo: https://github.com/andreoliwa/nitpick
-  #   rev: v0.38.1
-  #   hooks:
-  #     - id: nitpick-check
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
