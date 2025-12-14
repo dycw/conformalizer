@@ -72,22 +72,29 @@ def main(settings: Settings, /) -> None:
     if settings.pyproject__dependency_groups__dev:
         _add_pyproject_dependency_groups_dev(version=settings.version)
     if (name := settings.pyproject__project__name) is not None:
-        _add_pyproject_project_name(name)
+        _add_pyproject_project_name(name, version=settings.version)
     if settings.pyproject__project__optional_dependencies__scripts:
-        _add_pyproject_project_optional_dependencies_scripts()
+        _add_pyproject_project_optional_dependencies_scripts(version=settings.version)
     if (indexes := settings.pyproject__tool__uv__indexes) is not None:
         for index in indexes.split("|"):
             name, url = index.split(",")
-            _add_pyproject_uv_index(name, url)
+            _add_pyproject_uv_index(name, url, version=settings.version)
+    if settings.ruff:
+        _add_ruff(version=settings.version)
 
 
 def _add_pyproject(*, version: str = _SETTINGS.version) -> None:
-    with _yield_pyproject_toml("[]", version=version):
+    with _yield_pyproject("[]", version=version):
+        ...
+
+
+def _add_ruff(*, version: str = _SETTINGS.version) -> None:
+    with _yield_ruff("[]", version=version):
         ...
 
 
 def _add_pyproject_dependency_groups_dev(*, version: str = _SETTINGS.version) -> None:
-    with _yield_pyproject_toml("[dependency-groups.dev]", version=version) as doc:
+    with _yield_pyproject("[dependency-groups.dev]", version=version) as doc:
         dep_grps = _get_table(doc, "dependency-groups")
         dev = _get_array(dep_grps, "dev")
         _ensure_in_array("dycw-utilities[test]", dev)
@@ -97,7 +104,7 @@ def _add_pyproject_dependency_groups_dev(*, version: str = _SETTINGS.version) ->
 def _add_pyproject_project_name(
     name: str, /, *, version: str = _SETTINGS.version
 ) -> None:
-    with _yield_pyproject_toml("[project.name]", version=version) as doc:
+    with _yield_pyproject("[project.name]", version=version) as doc:
         proj = _get_table(doc, "project")
         proj["name"] = name
 
@@ -105,7 +112,7 @@ def _add_pyproject_project_name(
 def _add_pyproject_project_optional_dependencies_scripts(
     *, version: str = _SETTINGS.version
 ) -> None:
-    with _yield_pyproject_toml(
+    with _yield_pyproject(
         "[project.optional-dependencies.scripts]", version=version
     ) as doc:
         proj = _get_table(doc, "project")
@@ -117,7 +124,7 @@ def _add_pyproject_project_optional_dependencies_scripts(
 def _add_pyproject_uv_index(
     name: str, url: str, /, *, version: str = _SETTINGS.version
 ) -> None:
-    with _yield_pyproject_toml("[tool.uv.index]", version=version) as doc:
+    with _yield_pyproject("[tool.uv.index]", version=version) as doc:
         tool = _get_table(doc, "tool")
         uv = _get_table(tool, "uv")
         indexes = _get_aot(uv, "index")
@@ -158,7 +165,7 @@ def _get_table(obj: Container | Table, key: str, /) -> Table:
 
 
 @contextmanager
-def _yield_pyproject_toml(
+def _yield_pyproject(
     desc: str, /, *, version: str = _SETTINGS.version
 ) -> Iterator[TOMLDocument]:
     doc = _get_doc(_PYPROJECT_TOML)
@@ -174,7 +181,7 @@ def _yield_pyproject_toml(
 
 
 @contextmanager
-def _yield_ruff_toml(
+def _yield_ruff(
     desc: str, /, *, version: str = _SETTINGS.version
 ) -> Iterator[TOMLDocument]:
     doc = _get_doc(_RUFF_TOML)
