@@ -26,7 +26,6 @@ repos:
     rev: v0.9.3
   - hooks:
       - args:
-          - --python-version=3.13
           - --pre-commit-prettier
           - --pre-commit-ruff
           - --pre-commit-taplo
