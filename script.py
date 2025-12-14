@@ -220,11 +220,11 @@ def _add_pre_commit_taplo() -> None:
 
 def _add_pre_commit_uv() -> None:
     with _yield_pre_commit("[uv-pre-commit]") as dict_:
-        repos = _get_list(dict_, "repos")
-        _ensure_partial_dict_in_array(
-            repos,
-            {"repo": "https://github.com/astral-sh/uv-pre-commit"},
-            {"rev": "master", "hooks": [{"id": "uv-lock", "args": ["--upgrade"]}]},
+        _ensure_pre_commit_repo(
+            dict_,
+            "https://github.com/astral-sh/uv-pre-commit",
+            "uv-lock",
+            args=["--upgrade"],
         )
 
 
@@ -376,7 +376,7 @@ def _ensure_pre_commit_repo(
 ) -> None:
     repos_list = _get_list(pre_commit_dict, "repos")
     repo_dict = _ensure_partial_dict_in_array(
-        repos_list, {"repo": url}, extra={"rev": "master"}
+        repos_list, {"repo": url}, extra={} if url == "local" else {"rev": "master"}
     )
     hooks_list = _get_list(repo_dict, "hooks")
     hook_dict = _ensure_partial_dict_in_array(hooks_list, {"id": id_})
