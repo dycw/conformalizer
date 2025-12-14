@@ -27,8 +27,6 @@ from utilities.logging import basic_config
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from utilities.types import PathLike
-
 
 _LOGGER = getLogger(__name__)
 
@@ -86,9 +84,9 @@ def _add_pyproject_dependency_groups_dev(*, version: str = _SETTINGS.version) ->
 
 
 def _add_pyproject_project_name(
-    name: str, /, *, path: PathLike = _PYPROJECT_TOML
+    name: str, /, *, version: str = _SETTINGS.version
 ) -> None:
-    with _yield_pyproject("[project.name]", path=path) as doc:
+    with _yield_pyproject("[project.name]", version=version) as doc:
         proj = ensure_class(doc.setdefault("project", table()), Table)
         proj["name"] = name
 
