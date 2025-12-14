@@ -42,8 +42,20 @@ _LOGGER = getLogger(__name__)
 @settings()
 class Settings:
     version: str = option(default="3.14", help="Python version")
+    pre_commit_dockerfmt: bool = option(
+        default=False, help="Set up '.pre-commit-config.yaml' [dockerfmt]"
+    )
+    pre_commit_prettier: bool = option(
+        default=False, help="Set up '.pre-commit-config.yaml' [prettier]"
+    )
     pre_commit_ruff: bool = option(
         default=False, help="Set up '.pre-commit-config.yaml' [ruff-pre-commit]"
+    )
+    pre_commit_shell: bool = option(
+        default=False, help="Set up '.pre-commit-config.yaml' [shell]"
+    )
+    pre_commit_taplo: bool = option(
+        default=False, help="Set up '.pre-commit-config.yaml' [taplo-pre-commit]"
     )
     pre_commit_uv: bool = option(
         default=False, help="Set up '.pre-commit-config.yaml' [uv-pre-commit]"
@@ -91,8 +103,18 @@ def main(settings: Settings, /) -> None:
         return
     _LOGGER.info("Running...")
     _add_pre_commit()
+    if settings.pre_commit_dockerfmt:
+        _add_pre_commit_dockerfmt()
+    if settings.pre_commit_prettier:
+        _add_pre_commit_prettier()
     if settings.pre_commit_ruff:
         _add_pre_commit_ruff()
+    if settings.pre_commit_shell:
+        _add_pre_commit_shell()
+    if settings.pre_commit_taplo:
+        _add_pre_commit_taplo()
+    if settings.pre_commit_uv:
+        _add_pre_commit_uv()
     if settings.pyproject:
         _add_pyproject(version=settings.version)
     if settings.pyproject__dependency_groups__dev:
