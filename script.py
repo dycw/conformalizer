@@ -34,13 +34,22 @@ _LOGGER = getLogger(__name__)
 @settings()
 class Settings:
     version: str = option(default="3.14", help="Python version")
-    pyproject: bool = False
-    pyproject__dependency_groups__dev: bool = False
-    pyproject__project__name: str | None = None
-    pyproject__project__optional_dependencies__scripts: bool = False
-    pyproject__tool__uv__indexes: str | None = None
-    ruff: bool = False
-    dry_run: bool = False
+    pyproject: bool = option(default=False, help="Set up 'pyproject.toml'")
+    pyproject__dependency_groups__dev: bool = option(
+        default=False, help="Set up 'pyproject.toml' [dependency-groups.dev]"
+    )
+    pyproject__project__name: str | None = option(
+        default=None, help="Set up 'pyproject.toml' [project.name]"
+    )
+    pyproject__project__optional_dependencies__scripts: bool = option(
+        default=False,
+        help="Set up 'pyproject.toml' [project.optional-dependencies.scripts]",
+    )
+    pyproject__tool__uv__indexes: str | None = option(
+        default=None, help="Set up 'pyproject.toml' [[uv.tool.index]]"
+    )
+    ruff: bool = option(default=False, help="Set up 'ruff.toml'")
+    dry_run: bool = option(default=False, help="Dry run the CLI")
 
 
 _PYPROJECT_TOML = Path("pyproject.toml")
@@ -74,7 +83,7 @@ def _add_pyproject(*, version: str = _SETTINGS.version) -> None:
 
 
 def _add_pyproject_dependency_groups_dev(*, version: str = _SETTINGS.version) -> None:
-    with _yield_pyproject("[dependency-groups]", version=version) as doc:
+    with _yield_pyproject("[dependency-groups.dev]", version=version) as doc:
         dep_grps = ensure_class(doc.setdefault("dependency-groups", table()), Table)
         dev = ensure_class(dep_grps.setdefault("dev", array()), Array)
         if (dycw := "dycw-utilities[test]") not in dev:
