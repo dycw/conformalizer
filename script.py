@@ -417,7 +417,7 @@ def _yield_json_dict(path: PathLike, desc: str, /) -> Iterator[dict[str, Any]]:
 
 @contextmanager
 def _yield_pre_commit(desc: str, /) -> Iterator[dict[str, Any]]:
-    with _yield_yaml_dict(".pre-commit-config", desc) as dict_:
+    with _yield_yaml_dict(".pre-commit-config.yaml", desc) as dict_:
         yield dict_
 
 
