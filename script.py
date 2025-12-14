@@ -79,12 +79,12 @@ class Settings:
         default=False,
         help="Set up 'pyproject.toml' [project.optional-dependencies.scripts]",
     )
-    pyproject__tool__uv__indexes: list[tuple[str, str]] | None = option(
-        default=None, help="Set up 'pyproject.toml' [[uv.tool.index]]"
+    pyproject__tool__uv__indexes: list[tuple[str, str]] = option(
+        factory=list, help="Set up 'pyproject.toml' [[uv.tool.index]]"
     )
     pyright: bool = option(default=False, help="Set up 'pyrightconfig.json'")
-    pyright_include: list[str] | None = option(
-        default=None, help="Set up 'pyrightconfig.json' [include]"
+    pyright_include: list[str] = option(
+        factory=list, help="Set up 'pyrightconfig.json' [include]"
     )
     pytest: bool = option(default=False, help="Set up 'pytest.toml'")
     pytest_asyncio: bool = option(
@@ -134,24 +134,20 @@ def main(settings: Settings, /) -> None:
         _add_pyproject_project_optional_dependencies_scripts(
             version=settings.python_version
         )
-    if (indexes := settings.pyproject__tool__uv__indexes) is not None:
+    if len(indexes := settings.pyproject__tool__uv__indexes) >= 1:
         for name, url in indexes:
             _add_pyproject_uv_index(name, url, version=settings.python_version)
     if settings.pyright:
         _add_pyrightconfig(version=settings.python_version)
-    if (include := settings.pyright_include) is not None:
+    if len(include := settings.pyright_include) >= 1:
         _add_pyrightconfig_include(*include, version=settings.python_version)
     if settings.pytest:
-        breakpoint()
         _add_pytest()
     if settings.pytest_asyncio:
-        breakpoint()
         _add_pytest_asyncio()
     if settings.pytest_ignore_warnings:
-        breakpoint()
         _add_pytest_ignore_warnings()
     if (timeout := settings.pytest_timeout) is not None:
-        breakpoint()
         _add_pytest_timeout(timeout)
     if settings.ruff:
         _add_ruff(version=settings.python_version)
@@ -661,18 +657,19 @@ def _yield_write_context[T](
     desc: str | None = None,
 ) -> Iterator[T]:
     path = Path(path)
+    desc_use = "" if desc is None else f" {desc}"
     try:
         data = reader(path.read_text())
     except FileNotFoundError:
         yield (default := get_default())
-        _LOGGER.info("Writing '%s'%s...", path, "" if desc is None else f" {desc}")
+        _LOGGER.info("Writing '%s'%s...", path, desc_use)
         _ = path.write_text(writer(default))
         _ = _MODIFIED.set(True)
     else:
         yield data
         current = reader(path.read_text())
         if data != current:
-            _LOGGER.info("Adding '%s'%s...", path, "" if desc is None else f" {desc}")
+            _LOGGER.info("Adding '%s'%s...", path, desc_use)
             _ = path.write_text(writer(data))
             _ = _MODIFIED.set(True)
 
