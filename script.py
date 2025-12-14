@@ -15,7 +15,6 @@ import json
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
-from sys import version
 from typing import TYPE_CHECKING, Any
 
 import tomlkit
@@ -51,7 +50,7 @@ class Settings:
         default=False,
         help="Set up 'pyproject.toml' [project.optional-dependencies.scripts]",
     )
-    pyproject__tool__uv__indexes: str | None = option(
+    pyproject__tool__uv__indexes: list[tuple[str, str]] | None = option(
         default=None, help="Set up 'pyproject.toml' [[uv.tool.index]]"
     )
     pyright: bool = option(default=False, help="Set up 'pyrightconfig.json'")
@@ -91,13 +90,12 @@ def main(settings: Settings, /) -> None:
     if settings.pyproject__project__optional_dependencies__scripts:
         _add_pyproject_project_optional_dependencies_scripts(version=settings.version)
     if (indexes := settings.pyproject__tool__uv__indexes) is not None:
-        for index in indexes.split("|"):
-            name, url = index.split(",")
+        for name, url in indexes:
             _add_pyproject_uv_index(name, url, version=settings.version)
     if settings.pyright:
         _add_pyrightconfig(version=settings.version)
     if (include := settings.pyright_include) is not None:
-        _add_pyrightconfig_include(*include, version=version)
+        _add_pyrightconfig_include(*include, version=settings.version)
     if settings.pytest:
         _add_pytest()
     if settings.pytest_asyncio:
