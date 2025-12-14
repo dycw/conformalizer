@@ -8,6 +8,7 @@
 #   "pyyaml",
 #   "tomlkit",
 #   "typed-settings[attrs, click]",
+#   "xdg-base-dirs",
 # ]
 # ///
 from __future__ import annotations
@@ -18,7 +19,7 @@ from contextvars import ContextVar
 from logging import getLogger
 from pathlib import Path
 from re import search
-from subprocess import CalledProcessError, check_output
+from subprocess import CalledProcessError, check_call, check_output
 from typing import TYPE_CHECKING, Any, Literal, assert_never
 
 import tomlkit
@@ -34,6 +35,9 @@ from utilities.iterables import OneEmptyError, one
 from utilities.logging import basic_config
 from utilities.pathlib import get_repo_root
 from utilities.version import Version, VersionLike, parse_version
+from utilities.whenever import HOUR, get_now
+from whenever import ZonedDateTime
+from xdg_base_dirs import xdg_cache_home
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -111,6 +115,7 @@ def main(settings: Settings, /) -> None:
         return
     _LOGGER.info("Running...")
     _run_bump_my_version(version=settings.code_version)
+    _run_pre_commit_update()
     _add_pre_commit()
     if settings.pre_commit_dockerfmt:
         _add_pre_commit_dockerfmt()
@@ -452,6 +457,13 @@ def _get_table(obj: Container | Table, key: str, /) -> Table:
 def _run_bump_my_version(*, version: VersionLike = _SETTINGS.code_version) -> None:
     if search("template", str(get_repo_root())):
         return
+
+    def run(doc: TOMLDocument, version: Version, /) -> None:
+        tool = _get_table(doc, "tool")
+        bumpversion = _get_table(tool, "bumpversion")
+        bumpversion["current_version"] = str(version)
+        _ = _MODIFIED.set(True)
+
     with _yield_bump_my_version(version=version) as doc:
         current = _get_version(doc)
         try:
@@ -460,13 +472,29 @@ def _run_bump_my_version(*, version: VersionLike = _SETTINGS.code_version) -> No
             ).rstrip("\n")
             prev = _get_version(text)
         except (CalledProcessError, NonExistentKey):
-            prev = Version(0, 1, 0)
-        patch = prev.bump_patch()
-        if current not in {patch, prev.bump_minor(), prev.bump_major()}:
-            tool = _get_table(doc, "tool")
-            bumpversion = _get_table(tool, "bumpversion")
-            bumpversion["current_version"] = str(patch)
-            _ = _MODIFIED.set(True)
+            run(doc, Version(0, 1, 1))
+        else:
+            patch = prev.bump_patch()
+            if current not in {patch, prev.bump_minor(), prev.bump_major()}:
+                run(doc, patch)
+
+
+def _run_pre_commit_update() -> None:
+    path = xdg_cache_home() / "pre-commit-hook-nitpick" / get_repo_root().name
+
+    def run() -> None:
+        _ = check_call(["pre-commit", "autoupdate"])
+        _ = path.write_text(get_now().format_iso())
+        _ = _MODIFIED.set(True)
+
+    try:
+        text = path.read_text()
+    except FileNotFoundError:
+        run()
+    else:
+        prev = ZonedDateTime.parse_iso(text.rstrip("\n"))
+        if prev < (get_now() - 4 * HOUR):
+            run()
 
 
 @contextmanager
