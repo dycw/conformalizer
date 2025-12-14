@@ -137,11 +137,31 @@ def _add_pre_commit_dockerfmt() -> None:
         )
 
 
+def _add_pre_commit_prettier() -> None:
+    with _yield_pre_commit("[prettier]") as dict_:
+        _ensure_pre_commit_repo(
+            dict_,
+            "local",
+            "prettier",
+            name="prettier",
+            entry="npx prettier --write",
+            language="system",
+            types_or=["markdown", "yaml"],
+        )
+
+
 def _add_pre_commit_ruff() -> None:
     url = "https://github.com/astral-sh/ruff-pre-commit"
     with _yield_pre_commit("[ruff-pre-commit]") as dict_:
         _ensure_pre_commit_repo(dict_, url, "ruff-check", args=["--fix"])
         _ensure_pre_commit_repo(dict_, url, "ruff-format")
+
+
+def _add_pre_commit_shfmt() -> None:
+    with _yield_pre_commit("[pre-commit-shfmt]") as dict_:
+        _ensure_pre_commit_repo(
+            dict_, "https://github.com/scop/pre-commit-shfmt", "shfmt"
+        )
 
 
 def _add_pre_commit_taplo() -> None:
@@ -311,6 +331,10 @@ def _ensure_pre_commit_repo(
     id_: str,
     /,
     *,
+    name: str | None = None,
+    entry: str | None = None,
+    language: str | None = None,
+    types_or: list[str] | None = None,
     args: list[str] | None = None,
 ) -> None:
     repos_list = _get_list(pre_commit_dict, "repos")
@@ -319,6 +343,14 @@ def _ensure_pre_commit_repo(
     )
     hooks_list = _get_list(repo_dict, "hooks")
     hook_dict = _ensure_partial_dict_in_array(hooks_list, {"id": id_})
+    if name is not None:
+        hook_dict["name"] = name
+    if entry is not None:
+        hook_dict["entry"] = entry
+    if language is not None:
+        hook_dict["language"] = language
+    if types_or is not None:
+        hook_dict["types_or"] = types_or
     if args is not None:
         hook_args = _get_list(hook_dict, "args")
         _ensure_in_array(hook_args, *args)
