@@ -27,6 +27,9 @@ from utilities.logging import basic_config
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from tomlkit.container import Container
+    from utilities.types import PathLike
+
 
 _LOGGER = getLogger(__name__)
 
@@ -53,6 +56,7 @@ class Settings:
 
 
 _PYPROJECT_TOML = Path("pyproject.toml")
+_RUFF_TOML = Path("ruff.toml")
 _SETTINGS = Settings()
 
 
@@ -78,14 +82,14 @@ def main(settings: Settings, /) -> None:
 
 
 def _add_pyproject(*, version: str = _SETTINGS.version) -> None:
-    with _yield_pyproject("[]", version=version):
+    with _yield_pyproject_toml("[]", version=version):
         ...
 
 
 def _add_pyproject_dependency_groups_dev(*, version: str = _SETTINGS.version) -> None:
-    with _yield_pyproject("[dependency-groups.dev]", version=version) as doc:
-        dep_grps = ensure_class(doc.setdefault("dependency-groups", table()), Table)
-        dev = ensure_class(dep_grps.setdefault("dev", array()), Array)
+    with _yield_pyproject_toml("[dependency-groups.dev]", version=version) as doc:
+        dep_grps = _get_table(doc, "dependency-groups")
+        dev = _get_array(dep_grps, "dev")
         if (dycw := "dycw-utilities[test]") not in dev:
             dev.append(dycw)
         if (rich := "rich") not in dev:
@@ -95,22 +99,20 @@ def _add_pyproject_dependency_groups_dev(*, version: str = _SETTINGS.version) ->
 def _add_pyproject_project_name(
     name: str, /, *, version: str = _SETTINGS.version
 ) -> None:
-    with _yield_pyproject("[project.name]", version=version) as doc:
-        proj = ensure_class(doc.setdefault("project", table()), Table)
+    with _yield_pyproject_toml("[project.name]", version=version) as doc:
+        proj = _get_table(doc, "project")
         proj["name"] = name
 
 
 def _add_pyproject_project_optional_dependencies_scripts(
     *, version: str = _SETTINGS.version
 ) -> None:
-    with _yield_pyproject(
+    with _yield_pyproject_toml(
         "[project.optional-dependencies.scripts]", version=version
     ) as doc:
-        proj = ensure_class(doc.setdefault("project", table()), Table)
-        opt_deps = ensure_class(
-            proj.setdefault("optional-dependencies", table()), Table
-        )
-        scripts = ensure_class(opt_deps.setdefault("scripts", array()), Array)
+        proj = _get_table(doc, "project")
+        opt_deps = _get_table(proj, "optional-dependencies")
+        scripts = _get_array(opt_deps, "scripts")
         if (click := "click >=8.3.1") not in scripts:
             scripts.append(click)
 
@@ -118,10 +120,10 @@ def _add_pyproject_project_optional_dependencies_scripts(
 def _add_pyproject_uv_index(
     name: str, url: str, /, *, version: str = _SETTINGS.version
 ) -> None:
-    with _yield_pyproject("[tool.uv.index]", version=version) as doc:
-        tool = ensure_class(doc.setdefault("tool", table()), Table)
-        uv = ensure_class(tool.setdefault("uv", table()), Table)
-        indexes = ensure_class(uv.setdefault("index", aot()), AoT)
+    with _yield_pyproject_toml("[tool.uv.index]", version=version) as doc:
+        tool = _get_table(doc, "tool")
+        uv = _get_table(tool, "uv")
+        indexes = _get_aot(uv, "index")
         index = table()
         index["explicit"] = True
         index["name"] = name
@@ -130,26 +132,61 @@ def _add_pyproject_uv_index(
             indexes.append(index)
 
 
+def _get_aot(obj: Container | Table, key: str, /) -> AoT:
+    return ensure_class(obj.setdefault(key, aot()), AoT)
+
+
+def _get_array(obj: Container | Table, key: str, /) -> Array:
+    return ensure_class(obj.setdefault(key, array()), Array)
+
+
+def _get_doc(path: PathLike, /) -> TOMLDocument:
+    try:
+        return parse(Path(path).read_text())
+    except FileNotFoundError:
+        return document()
+
+
+def _get_table(obj: Container | Table, key: str, /) -> Table:
+    return ensure_class(obj.setdefault(key, table()), Table)
+
+
 @contextmanager
-def _yield_pyproject(
+def _yield_pyproject_toml(
     desc: str, /, *, version: str = _SETTINGS.version
 ) -> Iterator[TOMLDocument]:
-    try:
-        doc = parse(_PYPROJECT_TOML.read_text())
-    except FileNotFoundError:
-        doc = document()
-    bld_sys = ensure_class(doc.setdefault("build-system", table()), Table)
+    doc = _get_doc(_PYPROJECT_TOML)
+    bld_sys = _get_table(doc, "build-system")
     bld_sys["build-backend"] = "uv_build"
     bld_sys["requires"] = ["uv_build"]
+    project = _get_table(doc, "project")
+    project["requires-python"] = f">= {version}"
+    yield doc
+    if doc != _get_doc(_PYPROJECT_TOML):
+        _LOGGER.info("Adding `pyproject.toml` %s...", desc)
+        _ = _PYPROJECT_TOML.write_text(dumps(doc))
+
+
+@contextmanager
+def _yield_ruff_toml(
+    desc: str, /, *, version: str = _SETTINGS.version
+) -> Iterator[TOMLDocument]:
+    doc = _get_doc(_RUFF_TOML)
+    doc["target-version"] = f"py{version.replace('.', '')}"
+    doc["unsafe-fixes"] = True
+    fmt = ensure_class(doc.setdefault("format", table()), Table)
+    fmt["preview"] = True
+    fmt["skip-magic-trailing-comma"] = True
+    lint = ensure_class(doc.setdefault("lint", table()), Table)
+    lint["explicit-preview-rules"] = True
+    ensure_class(lint.setdefault("fixable", array()), Array)
+    lint["fixable"] = ["ALL"]
+    lint["ingore"]
     project = ensure_class(doc.setdefault("project", table()), Table)
     project["requires-python"] = f">= {version}"
     yield doc
-    try:
-        current = parse(_PYPROJECT_TOML.read_text())
-    except FileNotFoundError:
-        current = document()
-    if current != doc:
-        _LOGGER.info("Adding `pyproject.toml` %s...", desc)
+    if doc != _get_doc(_RUFF_TOML):
+        _LOGGER.info("Adding `ruff.toml` %s...", desc)
         _ = _PYPROJECT_TOML.write_text(dumps(doc))
 
 
