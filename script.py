@@ -97,8 +97,8 @@ def _add_pyproject_dependency_groups_dev(*, version: str = _SETTINGS.version) ->
     with _yield_pyproject("[dependency-groups.dev]", version=version) as doc:
         dep_grps = _get_table(doc, "dependency-groups")
         dev = _get_array(dep_grps, "dev")
-        _ensure_in_array("dycw-utilities[test]", dev)
-        _ensure_in_array("rich", dev)
+        _ensure_in_array(dev, "dycw-utilities[test]")
+        _ensure_in_array(dev, "rich")
 
 
 def _add_pyproject_project_name(
@@ -118,7 +118,7 @@ def _add_pyproject_project_optional_dependencies_scripts(
         proj = _get_table(doc, "project")
         opt_deps = _get_table(proj, "optional-dependencies")
         scripts = _get_array(opt_deps, "scripts")
-        _ensure_in_array("click >=8.3.1", scripts)
+        _ensure_in_array(scripts, "click >=8.3.1")
 
 
 def _add_pyproject_uv_index(
@@ -132,17 +132,19 @@ def _add_pyproject_uv_index(
         index["explicit"] = True
         index["name"] = name
         index["url"] = url
-        _ensure_in_aot(index, indexes)
+        _ensure_in_aot(indexes, index)
 
 
-def _ensure_in_aot(table: Table, array: AoT, /) -> None:
-    if table not in array:
-        array.append(table)
+def _ensure_in_aot(array: AoT, /, *tables: Table) -> None:
+    for table_ in tables:
+        if table_ not in array:
+            array.append(table_)
 
 
-def _ensure_in_array(obj: Any, array: Array, /) -> None:
-    if obj not in array:
-        array.append(obj)
+def _ensure_in_array(array: Array, /, *objs: Any) -> None:
+    for obj in objs:
+        if obj not in array:
+            array.append(obj)
 
 
 def _get_aot(obj: Container | Table, key: str, /) -> AoT:
@@ -193,9 +195,10 @@ def _yield_ruff(
     lint = _get_table(doc, "lint")
     lint["explicit-preview-rules"] = True
     fixable = _get_array(lint, "fixable")
-    _ensure_in_array("ALL", fixable)
+    _ensure_in_array(fixable, "ALL")
     ignore = _get_array(lint, "ignore")
-    for code in [
+    _ensure_in_array(
+        ignore,
         "ANN401",  # any-type
         "ASYNC109",  # async-function-with-timeout
         "C901",  # complex-structure
@@ -232,12 +235,12 @@ def _yield_ruff(
         "COM819",  # prohibited-trailing-comma
         "ISC001",  # single-line-implicit-string-concatenation
         "ISC002",  # multi-line-implicit-string-concatenation
-    ]:
-        _ensure_in_array(code, ignore)
+    )
+    lint["preview"] = 1
     yield doc
     if doc != _get_doc(_RUFF_TOML):
         _LOGGER.info("Adding `ruff.toml` %s...", desc)
-        _ = _PYPROJECT_TOML.write_text(dumps(doc))
+        _ = _RUFF_TOML.write_text(dumps(doc))
 
 
 if __name__ == "__main__":
