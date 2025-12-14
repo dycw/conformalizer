@@ -556,30 +556,26 @@ def _yield_ruff(
             "ISC001",  # single-line-implicit-string-concatenation
             "ISC002",  # multi-line-implicit-string-concatenation
         )
-        _ensure_not_in_array(
-            ignore,
-            "RUF022",  # unsorted-dunder-all
-            "RUF029",  # unused-async
-            "S101",  # assert
-            "SLF001",  # private-member-access
-        )
         lint["preview"] = True
         select = _get_array(lint, "select")
-        _ensure_in_array(
-            select,
-            "ALL",
+        selected_rules = [
             "RUF022",  # unsorted-dunder-all
             "RUF029",  # unused-async
-        )
-        extend_ignores = _get_table(lint, "extend-per-file-ignores")
-        test_py = _get_array(extend_ignores, "test_*.py")
-        _ensure_in_array(
-            test_py,
+        ]
+        _ensure_in_array(select, "ALL", *selected_rules)
+        extend_per_file_ignores = _get_table(lint, "extend-per-file-ignores")
+        test_py = _get_array(extend_per_file_ignores, "test_*.py")
+        test_py_rules = [
             "S101",  # assert
             "SLF001",  # private-member-access
-        )
+        ]
+        _ensure_in_array(test_py, *test_py_rules)
+        _ensure_not_in_array(ignore, *selected_rules, *test_py_rules)
         bugbear = _get_table(lint, "flake8-bugbear")
-        bugbear["ban-relative-imports"] = "all"
+        extend_immutable_calls = _get_array(bugbear, "extend-immutable-calls")
+        _ensure_in_array(extend_immutable_calls, "typing.cast")
+        tidy_imports = _get_table(lint, "flake8-tidy-imports")
+        tidy_imports["ban-relative-imports"] = "all"
         isort = _get_table(lint, "isort")
         req_imps = _get_array(isort, "required-imports")
         _ensure_in_array(req_imps, "from __future__ import annotations")
