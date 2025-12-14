@@ -15,10 +15,12 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from logging import getLogger
+from os import read
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import tomlkit
+import yaml
 from click import command
 from tomlkit import TOMLDocument, aot, array, document, table
 from tomlkit.items import AoT, Array, Table
@@ -28,7 +30,7 @@ from utilities.functions import ensure_class
 from utilities.logging import basic_config
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from tomlkit.container import Container
     from utilities.types import PathLike
@@ -40,6 +42,9 @@ _LOGGER = getLogger(__name__)
 @settings()
 class Settings:
     version: str = option(default="3.14", help="Python version")
+    pre_commit_ruff: bool = option(
+        default=False, help="Set up '.pre-commit-config.yaml' [ruff-pre-commit]"
+    )
     pyproject: bool = option(default=False, help="Set up 'pyproject.toml'")
     pyproject__dependency_groups__dev: bool = option(
         default=False, help="Set up 'pyproject.toml' [dependency-groups.dev]"
@@ -82,6 +87,8 @@ def main(settings: Settings, /) -> None:
         _LOGGER.info("Dry run; exiting...")
         return
     _LOGGER.info("Running...")
+    if settings.pre_commit_ruff:
+        _add_pre_commit_ruff()
     if settings.pyproject:
         _add_pyproject(version=settings.version)
     if settings.pyproject__dependency_groups__dev:
@@ -107,6 +114,11 @@ def main(settings: Settings, /) -> None:
         _add_pytest_timeout(timeout)
     if settings.ruff:
         _add_ruff(version=settings.version)
+
+
+def _add_pre_commit() -> None:
+    with _yield_pre_commit(""):
+        ...
 
 
 def _add_pyproject(*, version: str = _SETTINGS.version) -> None:
@@ -234,13 +246,6 @@ def _get_array(obj: Container | Table, key: str, /) -> Array:
     return ensure_class(obj.setdefault(key, array()), Array)
 
 
-def _get_json_dict(path: PathLike, /) -> dict[str, Any]:
-    try:
-        return json.loads(Path(path).read_text())
-    except FileNotFoundError:
-        return {}
-
-
 def _get_list(obj: dict[str, Any], key: str, /) -> list[Any]:
     return ensure_class(obj.setdefault(key, []), list)
 
@@ -256,24 +261,23 @@ def _get_table(obj: Container | Table, key: str, /) -> Table:
     return ensure_class(obj.setdefault(key, table()), Table)
 
 
+def _get_yaml_dict(path: PathLike, /) -> dict[str, Any]:
+    try:
+        return yaml.safe_load(Path(path).read_text())
+    except FileNotFoundError:
+        return {}
+
+
 @contextmanager
 def _yield_json_dict(path: PathLike, desc: str, /) -> Iterator[dict[str, Any]]:
-    path = Path(path)
-    dict_ = _get_json_dict(path)
-    yield dict_
-    if dict_ != _get_json_dict(path):
-        _LOGGER.info("Adding '%s' %s...", path, desc)
-        _ = path.write_text(json.dumps(dict_))
+    with _yield_write_context(path, json.loads, dict, desc, json.dumps) as dict_:
+        yield dict_
 
 
 @contextmanager
-def _yield_toml_doc(path: PathLike, desc: str, /) -> Iterator[TOMLDocument]:
-    path = Path(path)
-    doc = _get_toml_doc(path)
-    yield doc
-    if doc != _get_toml_doc(path):
-        _LOGGER.info("Adding '%s' %s...", path, desc)
-        _ = path.write_text(tomlkit.dumps(doc))
+def _yield_pre_commit(desc: str, /) -> Iterator[dict[str, Any]]:
+    with _yield_yaml_dict(".pre-commit-config", desc) as dict_:
+        yield dict_
 
 
 @contextmanager
@@ -429,6 +433,54 @@ def _yield_ruff(
         _ensure_in_array(req_imps, "from __future__ import annotations")
         isort["split-on-trailing-comma"] = False
         yield doc
+
+
+@contextmanager
+def _yield_write_context[T](
+    path: PathLike,
+    reader: Callable[[str], T],
+    get_default: Callable[[], T],
+    desc: str,
+    writer: Callable[[T], str],
+    /,
+) -> Iterator[T]:
+    path = Path(path)
+    try:
+        data = reader(path.read_text())
+    except FileNotFoundError:
+        yield (default := get_default())
+        _LOGGER.info("Adding '%s' %s...", path, desc)
+        _ = path.write_text(writer(default))
+    else:
+        yield data
+        current = reader(path.read_text())
+        if data != current:
+            _LOGGER.info("Adding '%s' %s...", path, desc)
+            _ = path.write_text(writer(data))
+
+
+@contextmanager
+def _yield_yaml_dict(path: PathLike, desc: str, /) -> Iterator[dict[str, Any]]:
+    path = Path(path)
+    dict_ = _get_yaml_dict(path)
+    yield dict_
+    if dict_ != _get_yaml_dict(path):
+        _LOGGER.info("Adding '%s' %s...", path, desc)
+        _ = path.write_text(yaml.safe_dump(dict_))
+
+
+@contextmanager
+def _yield_toml_doc(path: PathLike, desc: str, /) -> Iterator[TOMLDocument]:
+    with _yield_write_context(
+        path, tomlkit.parse, document, desc, tomlkit.dumps
+    ) as doc:
+        yield doc
+    path = Path(path)
+    doc = _get_toml_doc(path)
+    yield doc
+    if doc != _get_toml_doc(path):
+        _LOGGER.info("Adding '%s' %s...", path, desc)
+        _ = path.write_text(tomlkit.dumps(doc))
 
 
 if __name__ == "__main__":
