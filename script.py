@@ -58,9 +58,7 @@ _MODIFIED = ContextVar("modified", default=False)
 @settings
 class Settings:
     code_version: str = option(default="0.1.0", help="Code version")
-    github__push_tag: bool = option(
-        default=False, help="Set up '.github/workflows/push--tag.yaml'"
-    )
+    github__push_tag: bool = option(default=False, help="Set up 'push--tag.yaml'")
     github__push_tag__major_minor: bool = option(
         default=False, help="Set up 'push--tag.yaml' with the 'major.minor' tag"
     )
@@ -68,7 +66,7 @@ class Settings:
         default=False, help="Set up 'push--tag.yaml' with the the 'major' tag"
     )
     github__push_tag__latest: bool = option(
-        default=True, help="Set up 'push--tag.yaml' with the 'latest' tag"
+        default=False, help="Set up 'push--tag.yaml' with the 'latest' tag"
     )
     python_version: str = option(default="3.14", help="Python version")
     pre_commit__dockerfmt: bool = option(
@@ -576,8 +574,10 @@ def _yield_bump_my_version(
 
 
 @contextmanager
-def _yield_github_push_tag() -> Iterator[StrDict]:
-    with _yield_yaml_dict(".github/workflows/push--tag.yaml") as push_tag_dict:
+def _yield_github_push_tag(*, desc: str | None = None) -> Iterator[StrDict]:
+    with _yield_yaml_dict(
+        ".github/workflows/push--tag.yaml", desc=desc
+    ) as push_tag_dict:
         push_tag_dict["name"] = "push"
         on = _get_or_add_dict(push_tag_dict, "on")
         push = _get_or_add_dict(on, "push")
@@ -796,7 +796,7 @@ def _yield_yaml_dict(
     path: PathLike, /, *, desc: str | None = None
 ) -> Iterator[StrDict]:
     with _yield_write_context(
-        path, yaml.safe_load, document, yaml.safe_dump, desc=desc
+        path, yaml.safe_load, dict, yaml.safe_dump, desc=desc
     ) as dict_:
         yield dict_
 
