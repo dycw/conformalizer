@@ -49,7 +49,6 @@ if TYPE_CHECKING:
 
 
 _LOGGER = getLogger(__name__)
-_CONFIGS = Path(__file__).parent / "configs"
 _MODIFIED = ContextVar("modified", default=False)
 
 
@@ -58,6 +57,15 @@ class Settings:
     code_version: str = option(default="0.1.0", help="Code version")
     github__push_tag: bool = option(
         default=False, help="Set up '.github/workflows/push--tag.yaml'"
+    )
+    github__push_tag__major_minor: bool = option(
+        default=False, help="Set up 'push--tag.yaml' with the 'major.minor' tag"
+    )
+    github__push_tag__major: bool = option(
+        default=False, help="Set up 'push--tag.yaml' with the the 'major' tag"
+    )
+    github__push_tag__latest: bool = option(
+        default=False, help="Set up 'push--tag.yaml' with the 'latest' tag"
     )
     python_version: str = option(default="3.14", help="Python version")
     pre_commit__dockerfmt: bool = option(
@@ -128,7 +136,11 @@ def main(settings: Settings, /) -> None:
     _run_pre_commit_update()
     _add_pre_commit()
     if settings.github__push_tag:
-        _add_github_push_tag()
+        _add_github_push_tag(
+            major_minor=settings.github__push_tag__major_minor,
+            major=settings.github__push_tag__major,
+            latest=settings.github__push_tag__latest,
+        )
     if settings.pre_commit__dockerfmt:
         _add_pre_commit_dockerfmt()
     if settings.pre_commit__prettier:
@@ -175,9 +187,8 @@ def main(settings: Settings, /) -> None:
 
 
 def _add_github_push_tag() -> None:
-    src = _CONFIGS / "push--tag.yaml"
-    dest = Path(".github/workflows") / src.name
-    _write_text_file(dest, src.read_text())
+    with _yield_push_tag():
+        ...
 
 
 def _add_pre_commit() -> None:
@@ -483,6 +494,18 @@ def _get_array(obj: Container | Table, key: str, /) -> Array:
     return ensure_class(obj.setdefault(key, array()), Array)
 
 
+def _get_dict(obj: dict[str, Any], key: str, /) -> dict[str, Any]:
+    return ensure_class(obj.setdefault(key, {}), dict)
+
+
+def _get_list(obj: dict[str, Any], key: str, /) -> list[Any]:
+    return ensure_class(obj.setdefault(key, []), list)
+
+
+def _get_table(obj: Container | Table, key: str, /) -> Table:
+    return ensure_class(obj.setdefault(key, table()), Table)
+
+
 def _get_version(obj: TOMLDocument | str, /) -> Version:
     match obj:
         case TOMLDocument() as doc:
@@ -493,14 +516,6 @@ def _get_version(obj: TOMLDocument | str, /) -> Version:
             return _get_version(tomlkit.parse(text))
         case never:
             assert_never(never)
-
-
-def _get_list(obj: dict[str, Any], key: str, /) -> list[Any]:
-    return ensure_class(obj.setdefault(key, []), list)
-
-
-def _get_table(obj: Container | Table, key: str, /) -> Table:
-    return ensure_class(obj.setdefault(key, table()), Table)
 
 
 def _run_bump_my_version(*, version: VersionLike = _SETTINGS.code_version) -> None:
@@ -571,6 +586,31 @@ def _yield_json_dict(
 def _yield_pre_commit(*, desc: str | None = None) -> Iterator[dict[str, Any]]:
     with _yield_yaml_dict(".pre-commit-config.yaml", desc=desc) as dict_:
         yield dict_
+
+
+@contextmanager
+def _yield_push_tag(*, desc: str | None = None) -> Iterator[TOMLDocument]:
+    with _yield_yaml_dict(
+        ".github/workflows/push--tag.yaml", desc=desc
+    ) as push_tag_dict:
+        push_tag_dict["name"] = "push"
+        on = _get_dict(push_tag_dict, "on")
+        push = _get_dict(on, "push")
+        branches = _get_list(push, "branches")
+        _ensure_in_array(branches, "master")
+        jobs = _get_dict(push_tag_dict, "jobs")
+        tag = _get_dict(jobs, "tag")
+        tag["runs-on"] = "ubuntu-latest"
+        steps = _get_list(tag, "steps")
+        step_dict = _ensure_partial_dict_in_array(
+            steps,
+            {
+                "name": "Tag latest commit",
+                "uses": "dycw/action-tag-commit@latest",
+                "with": {"token": "${{ secrets.GITHUB_TOKEN }}"},
+            },
+        )
+        _get_dict(step_dict, "with")
 
 
 @contextmanager
