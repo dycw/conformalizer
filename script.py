@@ -137,11 +137,13 @@ def main(settings: Settings, /) -> None:
     _run_pre_commit_update()
     _add_pre_commit()
     if settings.github__push_tag:
-        _add_github_push_tag(
-            major_minor=settings.github__push_tag__major_minor,
-            major=settings.github__push_tag__major,
-            latest=settings.github__push_tag__latest,
-        )
+        _add_github_push_tag()
+    if settings.github__push_tag__major_minor:
+        _add_github_push_tag(major_minor=True)
+    if settings.github__push_tag__major:
+        _add_github_push_tag(major=True)
+    if settings.github__push_tag__latest:
+        _add_github_push_tag(latest=True)
     if settings.pre_commit__dockerfmt:
         _add_pre_commit_dockerfmt()
     if settings.pre_commit__prettier:
@@ -190,8 +192,31 @@ def main(settings: Settings, /) -> None:
 def _add_github_push_tag(
     *, major_minor: bool = False, major: bool = False, latest: bool = False
 ) -> None:
-    with _yield_push_tag(major_minor=major_minor, major=major, latest=latest):
-        ...
+    with _yield_yaml_dict(".github/workflows/push--tag.yaml") as push_tag_dict:
+        push_tag_dict["name"] = "push"
+        on = _get_dict(push_tag_dict, "on")
+        push = _get_dict(on, "push")
+        branches = _get_list(push, "branches")
+        _ensure_in_array(branches, "master")
+        jobs = _get_dict(push_tag_dict, "jobs")
+        tag = _get_dict(jobs, "tag")
+        tag["runs-on"] = "ubuntu-latest"
+        steps = _get_list(tag, "steps")
+        step_dict = _ensure_partial_dict_in_array(
+            steps,
+            {
+                "name": "Tag latest commit",
+                "uses": "dycw/action-tag-commit@latest",
+                "with": {"token": "${{ secrets.GITHUB_TOKEN }}"},
+            },
+        )
+        with_ = _get_dict(step_dict, "with")
+        if major_minor:
+            with_["major.minor"] = True
+        if major:
+            with_["major"] = True
+        if latest:
+            with_["latest"] = True
 
 
 def _add_pre_commit() -> None:
@@ -589,44 +614,6 @@ def _yield_json_dict(
 def _yield_pre_commit(*, desc: str | None = None) -> Iterator[StrDict]:
     with _yield_yaml_dict(".pre-commit-config.yaml", desc=desc) as dict_:
         yield dict_
-
-
-@contextmanager
-def _yield_push_tag(
-    *,
-    desc: str | None = None,
-    major_minor: bool = False,
-    major: bool = False,
-    latest: bool = False,
-) -> Iterator[StrDict]:
-    with _yield_yaml_dict(
-        ".github/workflows/push--tag.yaml", desc=desc
-    ) as push_tag_dict:
-        push_tag_dict["name"] = "push"
-        on = _get_dict(push_tag_dict, "on")
-        push = _get_dict(on, "push")
-        branches = _get_list(push, "branches")
-        _ensure_in_array(branches, "master")
-        jobs = _get_dict(push_tag_dict, "jobs")
-        tag = _get_dict(jobs, "tag")
-        tag["runs-on"] = "ubuntu-latest"
-        steps = _get_list(tag, "steps")
-        step_dict = _ensure_partial_dict_in_array(
-            steps,
-            {
-                "name": "Tag latest commit",
-                "uses": "dycw/action-tag-commit@latest",
-                "with": {"token": "${{ secrets.GITHUB_TOKEN }}"},
-            },
-        )
-        with_ = _get_dict(step_dict, "with")
-        if major_minor:
-            with_["major.minor"] = True
-        if major:
-            with_["major"] = True
-        if latest:
-            with_["latest"] = True
-        yield push_tag_dict
 
 
 @contextmanager
