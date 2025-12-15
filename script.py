@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from utilities.types import PathLike
 
 
+type HasAppend = Array | list[Any]
 type HasSetDefault = Container | StrDict | Table
 type StrDict = dict[str, Any]
 _LOGGER = getLogger(__name__)
@@ -61,13 +62,13 @@ class Settings:
         default=False, help="Set up '.github/workflows/push--tag.yaml'"
     )
     github__push_tag__major_minor: bool = option(
-        default=True, help="Set up 'push--tag.yaml' with the 'major.minor' tag"
+        default=False, help="Set up 'push--tag.yaml' with the 'major.minor' tag"
     )
     github__push_tag__major: bool = option(
         default=False, help="Set up 'push--tag.yaml' with the the 'major' tag"
     )
     github__push_tag__latest: bool = option(
-        default=False, help="Set up 'push--tag.yaml' with the 'latest' tag"
+        default=True, help="Set up 'push--tag.yaml' with the 'latest' tag"
     )
     python_version: str = option(default="3.14", help="Python version")
     pre_commit__dockerfmt: bool = option(
@@ -314,7 +315,7 @@ def _add_pyrightconfig_include(
 ) -> None:
     with _yield_pyrightconfig(version=version) as dict_:
         include = _get_or_add_list(dict_, "include")
-        _ensure_in_array(include, *paths)
+        _ensure_contains(include, *paths)
 
 
 def _add_pytest() -> None:
@@ -333,7 +334,7 @@ def _add_pytest_ignore_warnings() -> None:
     with _yield_pytest(desc="asyncio_*") as doc:
         pytest = _get_or_add_table(doc, "pytest")
         filterwarnings = _get_or_add_array(pytest, "filterwarnings")
-        _ensure_in_array(
+        _ensure_contains(
             filterwarnings,
             "ignore::DeprecationWarning",
             "ignore::ResourceWarning",
@@ -345,7 +346,7 @@ def _add_pytest_test_paths(*paths: str) -> None:
     with _yield_pytest(desc="testpaths") as doc:
         pytest = _get_or_add_table(doc, "pytest")
         testpaths = _get_or_add_array(pytest, "testpaths")
-        _ensure_in_array(testpaths, *paths)
+        _ensure_contains(testpaths, *paths)
 
 
 def _add_pytest_timeout(timeout: int, /) -> None:
@@ -365,8 +366,8 @@ def _add_pyproject_dependency_groups_dev(
     with _yield_pyproject(desc="[dependency-groups.dev]", version=version) as doc:
         dep_grps = _get_or_add_table(doc, "dependency-groups")
         dev = _get_or_add_array(dep_grps, "dev")
-        _ensure_in_array(dev, "dycw-utilities[test]")
-        _ensure_in_array(dev, "rich")
+        _ensure_contains(dev, "dycw-utilities[test]")
+        _ensure_contains(dev, "rich")
 
 
 def _add_pyproject_project_name(
@@ -386,7 +387,7 @@ def _add_pyproject_project_optional_dependencies_scripts(
         proj = _get_or_add_table(doc, "project")
         opt_deps = _get_or_add_table(proj, "optional-dependencies")
         scripts = _get_or_add_array(opt_deps, "scripts")
-        _ensure_in_array(scripts, "click >=8.3.1")
+        _ensure_contains(scripts, "click >=8.3.1")
 
 
 def _add_pyproject_uv_index(
@@ -400,33 +401,23 @@ def _add_pyproject_uv_index(
         index["explicit"] = True
         index["name"] = name
         index["url"] = url
-        _ensure_in_aot(indexes, index)
+        _ensure_aot_contains(indexes, index)
 
 
-def _ensure_in_aot(array: AoT, /, *tables: Table) -> None:
+def _ensure_aot_contains(array: AoT, /, *tables: Table) -> None:
     for table_ in tables:
         if table_ not in array:
             array.append(table_)
 
 
-def _ensure_in_array(array: Array | list[Any], /, *objs: Any) -> None:
+def _ensure_contains(array: HasAppend, /, *objs: Any) -> None:
     for obj in objs:
         if obj not in array:
             array.append(obj)
 
 
-def _ensure_not_in_array(array: Array, /, *objs: Any) -> None:
-    for obj in objs:
-        try:
-            index = next(i for i, o in enumerate(array) if o == obj)
-        except StopIteration:
-            pass
-        else:
-            del array[index]
-
-
-def _ensure_partial_dict_in_array(
-    array: list[Any], partial: StrDict, /, *, extra: StrDict | None = None
+def _ensure_contains_partial(
+    array: HasAppend, partial: StrDict, /, *, extra: StrDict | None = None
 ) -> StrDict:
     try:
         return _get_partial_dict(array, partial)
@@ -434,6 +425,16 @@ def _ensure_partial_dict_in_array(
         dict_ = partial | ({} if extra is None else extra)
         array.append(dict_)
         return dict_
+
+
+def _ensure_not_contains(array: Array, /, *objs: Any) -> None:
+    for obj in objs:
+        try:
+            index = next(i for i, o in enumerate(array) if o == obj)
+        except StopIteration:
+            pass
+        else:
+            del array[index]
 
 
 def _ensure_pre_commit_repo(
@@ -450,11 +451,11 @@ def _ensure_pre_commit_repo(
     args: tuple[Literal["add", "exact"], list[str]] | None = None,
 ) -> None:
     repos_list = _get_or_add_list(pre_commit_dict, "repos")
-    repo_dict = _ensure_partial_dict_in_array(
+    repo_dict = _ensure_contains_partial(
         repos_list, {"repo": url}, extra={} if url == "local" else {"rev": "master"}
     )
     hooks_list = _get_or_add_list(repo_dict, "hooks")
-    hook_dict = _ensure_partial_dict_in_array(hooks_list, {"id": id_})
+    hook_dict = _ensure_contains_partial(hooks_list, {"id": id_})
     if name is not None:
         hook_dict["name"] = name
     if entry is not None:
@@ -469,7 +470,7 @@ def _ensure_pre_commit_repo(
         match args:
             case "add", list() as args_i:
                 hook_args = _get_or_add_list(hook_dict, "args")
-                _ensure_in_array(hook_args, *args_i)
+                _ensure_contains(hook_args, *args_i)
             case "exact", list() as args_i:
                 hook_dict["args"] = args_i
             case never:
@@ -581,12 +582,12 @@ def _yield_github_push_tag() -> Iterator[StrDict]:
         on = _get_or_add_dict(push_tag_dict, "on")
         push = _get_or_add_dict(on, "push")
         branches = _get_or_add_list(push, "branches")
-        _ensure_in_array(branches, "master")
+        _ensure_contains(branches, "master")
         jobs = _get_or_add_dict(push_tag_dict, "jobs")
         tag = _get_or_add_dict(jobs, "tag")
         tag["runs-on"] = "ubuntu-latest"
         steps = _get_or_add_list(tag, "steps")
-        _ = _ensure_partial_dict_in_array(
+        _ = _ensure_contains_partial(
             steps,
             {
                 "name": "Tag latest commit",
@@ -661,7 +662,7 @@ def _yield_pytest(*, desc: str | None = None) -> Iterator[TOMLDocument]:
     with _yield_toml_doc("pytest.toml", desc=desc) as doc:
         pytest = _get_or_add_table(doc, "pytest")
         addopts = _get_or_add_array(pytest, "addopts")
-        _ensure_in_array(
+        _ensure_contains(
             addopts,
             "-ra",
             "-vv",
@@ -672,7 +673,7 @@ def _yield_pytest(*, desc: str | None = None) -> Iterator[TOMLDocument]:
         pytest["collect_imported_tests"] = False
         pytest["empty_parameter_set_mark"] = "fail_at_collect"
         filterwarnings = _get_or_add_array(pytest, "filterwarnings")
-        _ensure_in_array(filterwarnings, "error")
+        _ensure_contains(filterwarnings, "error")
         pytest["minversion"] = "9.0"
         pytest["strict"] = True
         pytest["xfail_strict"] = True
@@ -692,9 +693,9 @@ def _yield_ruff(
         lint = _get_or_add_table(doc, "lint")
         lint["explicit-preview-rules"] = True
         fixable = _get_or_add_array(lint, "fixable")
-        _ensure_in_array(fixable, "ALL")
+        _ensure_contains(fixable, "ALL")
         ignore = _get_or_add_array(lint, "ignore")
-        _ensure_in_array(
+        _ensure_contains(
             ignore,
             "ANN401",  # any-type
             "ASYNC109",  # async-function-with-timeout
@@ -739,23 +740,23 @@ def _yield_ruff(
             "RUF022",  # unsorted-dunder-all
             "RUF029",  # unused-async
         ]
-        _ensure_in_array(select, "ALL", *selected_rules)
+        _ensure_contains(select, "ALL", *selected_rules)
         extend_per_file_ignores = _get_or_add_table(lint, "extend-per-file-ignores")
         test_py = _get_or_add_array(extend_per_file_ignores, "test_*.py")
         test_py_rules = [
             "S101",  # assert
             "SLF001",  # private-member-access
         ]
-        _ensure_in_array(test_py, *test_py_rules)
-        _ensure_not_in_array(ignore, *selected_rules, *test_py_rules)
+        _ensure_contains(test_py, *test_py_rules)
+        _ensure_not_contains(ignore, *selected_rules, *test_py_rules)
         bugbear = _get_or_add_table(lint, "flake8-bugbear")
         extend_immutable_calls = _get_or_add_array(bugbear, "extend-immutable-calls")
-        _ensure_in_array(extend_immutable_calls, "typing.cast")
+        _ensure_contains(extend_immutable_calls, "typing.cast")
         tidy_imports = _get_or_add_table(lint, "flake8-tidy-imports")
         tidy_imports["ban-relative-imports"] = "all"
         isort = _get_or_add_table(lint, "isort")
         req_imps = _get_or_add_array(isort, "required-imports")
-        _ensure_in_array(req_imps, "from __future__ import annotations")
+        _ensure_contains(req_imps, "from __future__ import annotations")
         isort["split-on-trailing-comma"] = False
         yield doc
 
