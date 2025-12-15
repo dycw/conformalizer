@@ -196,11 +196,11 @@ def _add_github_push_tag() -> None:
 
 def _add_github_push_tag_extra(key: str, /) -> None:
     with _yield_github_push_tag() as push_tag_dict:
-        jobs = _get_or_add_dict(push_tag_dict, "jobs")
-        tag = _get_or_add_dict(jobs, "tag")
-        steps = _get_or_add_list(tag, "steps")
+        jobs = _get_dict(push_tag_dict, "jobs")
+        tag = _get_dict(jobs, "tag")
+        steps = _get_list(tag, "steps")
         step_dict = _get_partial_dict(steps, {"name": "Tag latest commit"})
-        with_ = _get_or_add_dict(step_dict, "with")
+        with_ = _get_dict(step_dict, "with")
         with_[key] = True
 
 
@@ -312,7 +312,7 @@ def _add_pyrightconfig_include(
     *paths: str, version: str = _SETTINGS.python_version
 ) -> None:
     with _yield_pyrightconfig(version=version) as dict_:
-        include = _get_or_add_list(dict_, "include")
+        include = _get_list(dict_, "include")
         _ensure_contains(include, *paths)
 
 
@@ -323,15 +323,15 @@ def _add_pytest() -> None:
 
 def _add_pytest_asyncio() -> None:
     with _yield_pytest(desc="filterwarnings") as doc:
-        pytest = _get_or_add_table(doc, "pytest")
+        pytest = _get_table(doc, "pytest")
         pytest["asyncio_default_fixture_loop_scope"] = "function"
         pytest["asyncio_mode"] = "auto"
 
 
 def _add_pytest_ignore_warnings() -> None:
     with _yield_pytest(desc="asyncio_*") as doc:
-        pytest = _get_or_add_table(doc, "pytest")
-        filterwarnings = _get_or_add_array(pytest, "filterwarnings")
+        pytest = _get_table(doc, "pytest")
+        filterwarnings = _get_array(pytest, "filterwarnings")
         _ensure_contains(
             filterwarnings,
             "ignore::DeprecationWarning",
@@ -342,14 +342,14 @@ def _add_pytest_ignore_warnings() -> None:
 
 def _add_pytest_test_paths(*paths: str) -> None:
     with _yield_pytest(desc="testpaths") as doc:
-        pytest = _get_or_add_table(doc, "pytest")
-        testpaths = _get_or_add_array(pytest, "testpaths")
+        pytest = _get_table(doc, "pytest")
+        testpaths = _get_array(pytest, "testpaths")
         _ensure_contains(testpaths, *paths)
 
 
 def _add_pytest_timeout(timeout: int, /) -> None:
     with _yield_pytest(desc="timeout") as doc:
-        pytest = _get_or_add_table(doc, "pytest")
+        pytest = _get_table(doc, "pytest")
         pytest["timeout"] = str(timeout)
 
 
@@ -362,8 +362,8 @@ def _add_pyproject_dependency_groups_dev(
     *, version: str = _SETTINGS.python_version
 ) -> None:
     with _yield_pyproject(desc="[dependency-groups.dev]", version=version) as doc:
-        dep_grps = _get_or_add_table(doc, "dependency-groups")
-        dev = _get_or_add_array(dep_grps, "dev")
+        dep_grps = _get_table(doc, "dependency-groups")
+        dev = _get_array(dep_grps, "dev")
         _ensure_contains(dev, "dycw-utilities[test]")
         _ensure_contains(dev, "rich")
 
@@ -372,7 +372,7 @@ def _add_pyproject_project_name(
     name: str, /, *, version: str = _SETTINGS.python_version
 ) -> None:
     with _yield_pyproject(desc="project.name", version=version) as doc:
-        proj = _get_or_add_table(doc, "project")
+        proj = _get_table(doc, "project")
         proj["name"] = name
 
 
@@ -382,9 +382,9 @@ def _add_pyproject_project_optional_dependencies_scripts(
     with _yield_pyproject(
         desc="[project.optional-dependencies.scripts]", version=version
     ) as doc:
-        proj = _get_or_add_table(doc, "project")
-        opt_deps = _get_or_add_table(proj, "optional-dependencies")
-        scripts = _get_or_add_array(opt_deps, "scripts")
+        proj = _get_table(doc, "project")
+        opt_deps = _get_table(proj, "optional-dependencies")
+        scripts = _get_array(opt_deps, "scripts")
         _ensure_contains(scripts, "click >=8.3.1")
 
 
@@ -392,9 +392,9 @@ def _add_pyproject_uv_index(
     name: str, url: str, /, *, version: str = _SETTINGS.python_version
 ) -> None:
     with _yield_pyproject(desc="[tool.uv.index]", version=version) as doc:
-        tool = _get_or_add_table(doc, "tool")
-        uv = _get_or_add_table(tool, "uv")
-        indexes = _get_or_add_aot(uv, "index")
+        tool = _get_table(doc, "tool")
+        uv = _get_table(tool, "uv")
+        indexes = _get_aot(uv, "index")
         index = table()
         index["explicit"] = True
         index["name"] = name
@@ -448,11 +448,11 @@ def _ensure_pre_commit_repo(
     types_or: list[str] | None = None,
     args: tuple[Literal["add", "exact"], list[str]] | None = None,
 ) -> None:
-    repos_list = _get_or_add_list(pre_commit_dict, "repos")
+    repos_list = _get_list(pre_commit_dict, "repos")
     repo_dict = _ensure_contains_partial(
         repos_list, {"repo": url}, extra={} if url == "local" else {"rev": "master"}
     )
-    hooks_list = _get_or_add_list(repo_dict, "hooks")
+    hooks_list = _get_list(repo_dict, "hooks")
     hook_dict = _ensure_contains_partial(hooks_list, {"id": id_})
     if name is not None:
         hook_dict["name"] = name
@@ -467,7 +467,7 @@ def _ensure_pre_commit_repo(
     if args is not None:
         match args:
             case "add", list() as args_i:
-                hook_args = _get_or_add_list(hook_dict, "args")
+                hook_args = _get_list(hook_dict, "args")
                 _ensure_contains(hook_args, *args_i)
             case "exact", list() as args_i:
                 hook_dict["args"] = args_i
@@ -475,24 +475,20 @@ def _ensure_pre_commit_repo(
                 assert_never(never)
 
 
-def _get_or_add_aot(container: HasSetDefault, key: str, /) -> AoT:
+def _get_aot(container: HasSetDefault, key: str, /) -> AoT:
     return ensure_class(container.setdefault(key, aot()), AoT)
 
 
-def _get_or_add_array(container: HasSetDefault, key: str, /) -> Array:
+def _get_array(container: HasSetDefault, key: str, /) -> Array:
     return ensure_class(container.setdefault(key, array()), Array)
 
 
-def _get_or_add_dict(container: HasSetDefault, key: str, /) -> StrDict:
+def _get_dict(container: HasSetDefault, key: str, /) -> StrDict:
     return ensure_class(container.setdefault(key, {}), dict)
 
 
-def _get_or_add_list(containe: HasSetDefault, key: str, /) -> list[Any]:
+def _get_list(containe: HasSetDefault, key: str, /) -> list[Any]:
     return ensure_class(containe.setdefault(key, []), list)
-
-
-def _get_or_add_table(container: HasSetDefault, key: str, /) -> Table:
-    return ensure_class(container.setdefault(key, table()), Table)
 
 
 def _get_partial_dict(container: Iterable[Any], dict_: StrDict, /) -> StrDict:
@@ -505,11 +501,15 @@ def _get_partial_dict(container: Iterable[Any], dict_: StrDict, /) -> StrDict:
     )
 
 
+def _get_table(container: HasSetDefault, key: str, /) -> Table:
+    return ensure_class(container.setdefault(key, table()), Table)
+
+
 def _get_version(obj: TOMLDocument | str, /) -> Version:
     match obj:
         case TOMLDocument() as doc:
-            tool = _get_or_add_table(doc, "tool")
-            bumpversion = _get_or_add_table(tool, "bumpversion")
+            tool = _get_table(doc, "tool")
+            bumpversion = _get_table(tool, "bumpversion")
             return parse_version(str(bumpversion["current_version"]))
         case str() as text:
             return _get_version(tomlkit.parse(text))
@@ -522,8 +522,8 @@ def _run_bump_my_version(*, version: VersionLike = _SETTINGS.code_version) -> No
         return
 
     def run(doc: TOMLDocument, version: Version, /) -> None:
-        tool = _get_or_add_table(doc, "tool")
-        bumpversion = _get_or_add_table(tool, "bumpversion")
+        tool = _get_table(doc, "tool")
+        bumpversion = _get_table(tool, "bumpversion")
         bumpversion["current_version"] = str(version)
         _ = _MODIFIED.set(True)
 
@@ -566,8 +566,8 @@ def _yield_bump_my_version(
     *, version: VersionLike = _SETTINGS.code_version
 ) -> Iterator[TOMLDocument]:
     with _yield_toml_doc(".bumpversion.toml") as doc:
-        tool = _get_or_add_table(doc, "tool")
-        bumpversion = _get_or_add_table(tool, "bumpversion")
+        tool = _get_table(doc, "tool")
+        bumpversion = _get_table(tool, "bumpversion")
         bumpversion["allow_dirty"] = True
         bumpversion.setdefault("current_version", str(version))
         yield doc
@@ -579,14 +579,14 @@ def _yield_github_push_tag(*, desc: str | None = None) -> Iterator[StrDict]:
         ".github/workflows/push--tag.yaml", desc=desc
     ) as push_tag_dict:
         push_tag_dict["name"] = "push"
-        on = _get_or_add_dict(push_tag_dict, "on")
-        push = _get_or_add_dict(on, "push")
-        branches = _get_or_add_list(push, "branches")
+        on = _get_dict(push_tag_dict, "on")
+        push = _get_dict(on, "push")
+        branches = _get_list(push, "branches")
         _ensure_contains(branches, "master")
-        jobs = _get_or_add_dict(push_tag_dict, "jobs")
-        tag = _get_or_add_dict(jobs, "tag")
+        jobs = _get_dict(push_tag_dict, "jobs")
+        tag = _get_dict(jobs, "tag")
         tag["runs-on"] = "ubuntu-latest"
-        steps = _get_or_add_list(tag, "steps")
+        steps = _get_list(tag, "steps")
         _ = _ensure_contains_partial(
             steps,
             {
@@ -617,10 +617,10 @@ def _yield_pyproject(
     *, desc: str | None = None, version: str = _SETTINGS.python_version
 ) -> Iterator[TOMLDocument]:
     with _yield_toml_doc("pyproject.toml", desc=desc) as doc:
-        bld_sys = _get_or_add_table(doc, "build-system")
+        bld_sys = _get_table(doc, "build-system")
         bld_sys["build-backend"] = "uv_build"
         bld_sys["requires"] = ["uv_build"]
-        project = _get_or_add_table(doc, "project")
+        project = _get_table(doc, "project")
         project["requires-python"] = f">= {version}"
         yield doc
 
@@ -660,8 +660,8 @@ def _yield_pyrightconfig(
 @contextmanager
 def _yield_pytest(*, desc: str | None = None) -> Iterator[TOMLDocument]:
     with _yield_toml_doc("pytest.toml", desc=desc) as doc:
-        pytest = _get_or_add_table(doc, "pytest")
-        addopts = _get_or_add_array(pytest, "addopts")
+        pytest = _get_table(doc, "pytest")
+        addopts = _get_array(pytest, "addopts")
         _ensure_contains(
             addopts,
             "-ra",
@@ -672,7 +672,7 @@ def _yield_pytest(*, desc: str | None = None) -> Iterator[TOMLDocument]:
         )
         pytest["collect_imported_tests"] = False
         pytest["empty_parameter_set_mark"] = "fail_at_collect"
-        filterwarnings = _get_or_add_array(pytest, "filterwarnings")
+        filterwarnings = _get_array(pytest, "filterwarnings")
         _ensure_contains(filterwarnings, "error")
         pytest["minversion"] = "9.0"
         pytest["strict"] = True
@@ -687,14 +687,14 @@ def _yield_ruff(
     with _yield_toml_doc("ruff.toml", desc=desc) as doc:
         doc["target-version"] = f"py{version.replace('.', '')}"
         doc["unsafe-fixes"] = True
-        fmt = _get_or_add_table(doc, "format")
+        fmt = _get_table(doc, "format")
         fmt["preview"] = True
         fmt["skip-magic-trailing-comma"] = True
-        lint = _get_or_add_table(doc, "lint")
+        lint = _get_table(doc, "lint")
         lint["explicit-preview-rules"] = True
-        fixable = _get_or_add_array(lint, "fixable")
+        fixable = _get_array(lint, "fixable")
         _ensure_contains(fixable, "ALL")
-        ignore = _get_or_add_array(lint, "ignore")
+        ignore = _get_array(lint, "ignore")
         _ensure_contains(
             ignore,
             "ANN401",  # any-type
@@ -735,27 +735,27 @@ def _yield_ruff(
             "ISC002",  # multi-line-implicit-string-concatenation
         )
         lint["preview"] = True
-        select = _get_or_add_array(lint, "select")
+        select = _get_array(lint, "select")
         selected_rules = [
             "RUF022",  # unsorted-dunder-all
             "RUF029",  # unused-async
         ]
         _ensure_contains(select, "ALL", *selected_rules)
-        extend_per_file_ignores = _get_or_add_table(lint, "extend-per-file-ignores")
-        test_py = _get_or_add_array(extend_per_file_ignores, "test_*.py")
+        extend_per_file_ignores = _get_table(lint, "extend-per-file-ignores")
+        test_py = _get_array(extend_per_file_ignores, "test_*.py")
         test_py_rules = [
             "S101",  # assert
             "SLF001",  # private-member-access
         ]
         _ensure_contains(test_py, *test_py_rules)
         _ensure_not_contains(ignore, *selected_rules, *test_py_rules)
-        bugbear = _get_or_add_table(lint, "flake8-bugbear")
-        extend_immutable_calls = _get_or_add_array(bugbear, "extend-immutable-calls")
+        bugbear = _get_table(lint, "flake8-bugbear")
+        extend_immutable_calls = _get_array(bugbear, "extend-immutable-calls")
         _ensure_contains(extend_immutable_calls, "typing.cast")
-        tidy_imports = _get_or_add_table(lint, "flake8-tidy-imports")
+        tidy_imports = _get_table(lint, "flake8-tidy-imports")
         tidy_imports["ban-relative-imports"] = "all"
-        isort = _get_or_add_table(lint, "isort")
-        req_imps = _get_or_add_array(isort, "required-imports")
+        isort = _get_table(lint, "isort")
+        req_imps = _get_array(isort, "required-imports")
         _ensure_contains(req_imps, "from __future__ import annotations")
         isort["split-on-trailing-comma"] = False
         yield doc
