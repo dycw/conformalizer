@@ -110,7 +110,7 @@ class Settings:
         factory=list, help="Set up 'pyproject.toml' [[uv.tool.index]]"
     )
     pyright: bool = option(default=False, help="Set up 'pyrightconfig.json'")
-    pyright_include: list[str] = option(
+    pyright__include: list[str] = option(
         factory=list, help="Set up 'pyrightconfig.json' [include]"
     )
     pytest: bool = option(default=False, help="Set up 'pytest.toml'")
@@ -142,15 +142,13 @@ def main(settings: Settings, /) -> None:
     _run_pre_commit_update()
     _add_pre_commit()
     if settings.github__push__tag:
-        _add_github_push_tag()
-    if settings.github__push__tag__major_minor:
-        _add_github_push_tag_extra("major-minor")
-    if settings.github__push__tag__major:
-        _add_github_push_tag_extra("major")
-    if settings.github__push__tag__latest:
-        _add_github_push_tag_extra("latest")
-    if settings.github__push__publish:
-        _add_github_push_publish()
+        _add_github_push_yaml(
+            tag=settings.github__push__tag,
+            tag_major_minor=settings.github__push__tag__major_minor,
+            tag_major=settings.github__push__tag__major,
+            tag_latest=settings.github__push__tag__latest,
+            publish=settings.github__push__publish,
+        )
     if settings.pre_commit__dockerfmt:
         _add_pre_commit_dockerfmt()
     if settings.pre_commit__prettier:
@@ -177,11 +175,11 @@ def main(settings: Settings, /) -> None:
         for name, url in indexes:
             _add_pyproject_uv_index(name, url, version=settings.python_version)
     if settings.pyright:
-        _add_pyrightconfig(version=settings.python_version)
-    if len(include := settings.pyright_include) >= 1:
-        _add_pyrightconfig_include(*include, version=settings.python_version)
+        _add_pyrightconfig_json(
+            version=settings.python_version, include=settings.pyright__include
+        )
     if settings.pytest:
-        _add_pytest(
+        _add_pytest_toml(
             asyncio=settings.pytest__asyncio,
             ignore_warnings=settings.pytest__ignore_warnings,
             test_paths=settings.pytest__test_paths,
@@ -193,66 +191,73 @@ def main(settings: Settings, /) -> None:
         sys.exit(1)
 
 
-def _add_github_push_publish() -> None:
-    _add_github_push_tag()
-    with _yield_github_push() as dict_:
+def _add_github_push_yaml(
+    *,
+    tag: bool = _SETTINGS.github__push__tag,
+    tag_major_minor: bool = _SETTINGS.github__push__tag__major_minor,
+    tag_major: bool = _SETTINGS.github__push__tag__major,
+    tag_latest: bool = _SETTINGS.github__push__tag__latest,
+    publish: bool = _SETTINGS.github__push__publish,
+) -> None:
+    with _yield_yaml_dict(".github/workflows/push.yaml") as dict_:
+        dict_["name"] = "push"
+        on = _get_dict(dict_, "on")
+        push = _get_dict(on, "push")
+        branches = _get_list(push, "branches")
+        _ensure_contains(branches, "master")
         jobs = _get_dict(dict_, "jobs")
-        publish = _get_dict(jobs, "publish")
-        environment = _get_dict(publish, "environment")
-        environment["name"] = "pypi"
-        needs = _get_list(publish, "needs")
-        _ensure_contains(needs, "tag")
-        permissions = _get_dict(publish, "permissions")
-        permissions["id-write"] = "write"
-        publish["runs-on"] = "ubuntu-latest"
-        steps = _get_list(publish, "steps")
-        _ = _ensure_contains_partial(
-            steps, {"name": "Check out repository", "uses": "actions/checkout@v6"}
-        )
-        _ = _ensure_contains_partial(
-            steps,
-            {
-                "name": "Install 'uv'",
-                "uses": "astral-sh/setup-uv@7",
-                "with": {"enable-cache": True},
-            },
-        )
-        _ = _ensure_contains_partial(
-            steps, {"name": "Build Python package", "run": "uv build"}
-        )
-        _ = _ensure_contains_partial(
-            steps,
-            {
-                "name": "Upload distribution",
-                "run": "uv publish --trusted-publishing always",
-            },
-        )
-
-
-def _add_github_push_tag() -> None:
-    with _yield_github_push() as dict_:
-        jobs = _get_dict(dict_, "jobs")
-        tag = _get_dict(jobs, "tag")
-        tag["runs-on"] = "ubuntu-latest"
-        steps = _get_list(tag, "steps")
-        _ = _ensure_contains_partial(
-            steps,
-            {"name": "Tag latest commit", "uses": "dycw/action-tag-commit@latest"},
-            extra={"with": {"token": "${{ secrets.GITHUB_TOKEN }}"}},
-        )
-
-
-def _add_github_push_tag_extra(key: str, /) -> None:
-    with _yield_github_push() as dict_:
-        jobs = _get_dict(dict_, "jobs")
-        tag = _get_dict(jobs, "tag")
-        steps = _get_list(tag, "steps")
-        step_dict = _get_partial_dict(
-            steps,
-            {"name": "Tag latest commit", "uses": "dycw/action-tag-commit@latest"},
-        )
-        with_ = _get_dict(step_dict, "with")
-        with_[key] = True
+        if tag:
+            tag_dict = _get_dict(jobs, "tag")
+            tag_dict["runs-on"] = "ubuntu-latest"
+            steps = _get_list(tag_dict, "steps")
+            steps_dict = _ensure_contains_partial(
+                steps,
+                {"name": "Tag latest commit", "uses": "dycw/action-tag-commit@latest"},
+                extra={"with": {"token": "${{ secrets.GITHUB_TOKEN }}"}},
+            )
+            if tag_major_minor:
+                with_ = _get_dict(steps_dict, "with")
+                with_["major-minor"] = True
+            if tag_major:
+                with_ = _get_dict(steps_dict, "with")
+                with_["major"] = True
+            if tag_latest:
+                with_ = _get_dict(steps_dict, "with")
+                with_["latest"] = True
+            if tag_major_minor:
+                with_ = _get_dict(steps_dict, "with")
+                with_["major-minor"] = True
+        if publish:
+            publish_dict = _get_dict(jobs, "publish")
+            environment = _get_dict(publish_dict, "environment")
+            environment["name"] = "pypi"
+            needs = _get_list(publish_dict, "needs")
+            _ensure_contains(needs, "tag")
+            permissions = _get_dict(publish_dict, "permissions")
+            permissions["id-write"] = "write"
+            publish_dict["runs-on"] = "ubuntu-latest"
+            steps = _get_list(publish_dict, "steps")
+            _ = _ensure_contains_partial(
+                steps, {"name": "Check out repository", "uses": "actions/checkout@v6"}
+            )
+            _ = _ensure_contains_partial(
+                steps,
+                {
+                    "name": "Install 'uv'",
+                    "uses": "astral-sh/setup-uv@7",
+                    "with": {"enable-cache": True},
+                },
+            )
+            _ = _ensure_contains_partial(
+                steps, {"name": "Build Python package", "run": "uv build"}
+            )
+            _ = _ensure_contains_partial(
+                steps,
+                {
+                    "name": "Upload distribution",
+                    "run": "uv publish --trusted-publishing always",
+                },
+            )
 
 
 def _add_pre_commit() -> None:
@@ -279,7 +284,7 @@ def _add_pre_commit() -> None:
 
 
 def _add_pre_commit_dockerfmt() -> None:
-    with _yield_pre_commit(desc="dockerfmt") as dict_:
+    with _yield_pre_commit() as dict_:
         _ensure_pre_commit_repo(
             dict_,
             "https://github.com/reteps/dockerfmt",
@@ -350,11 +355,15 @@ def _add_pre_commit_uv(*, script: str | None = None) -> None:
 
 
 def _add_pyproject(*, version: str = _SETTINGS.python_version) -> None:
-    with _yield_pyproject(version=version):
+    with _yield_pyproject_toml(version=version):
         ...
 
 
-def _add_pyrightconfig(*, version: str = _SETTINGS.python_version) -> None:
+def _add_pyrightconfig_json(
+    *,
+    version: str = _SETTINGS.python_version,
+    include: list[str] = _SETTINGS.pyright__include,
+) -> None:
     with _yield_json_dict("pyrightconfig.json") as dict_:
         dict_["deprecateTypingAliases"] = True
         dict_["enableReachabilityAnalysis"] = False
@@ -380,18 +389,12 @@ def _add_pyrightconfig(*, version: str = _SETTINGS.python_version) -> None:
         dict_["reportUnusedImport"] = False
         dict_["reportUnusedVariable"] = False
         dict_["typeCheckingMode"] = "strict"
-        yield dict_
+        if len(include) >= 1:
+            include_list = _get_list(dict_, "include")
+            _ensure_contains(include_list, *include)
 
 
-def _add_pyrightconfig_include(
-    *paths: str, version: str = _SETTINGS.python_version
-) -> None:
-    with _yield_pyrightconfig(version=version) as dict_:
-        include = _get_list(dict_, "include")
-        _ensure_contains(include, *paths)
-
-
-def _add_pytest(
+def _add_pytest_toml(
     *,
     asyncio: bool = _SETTINGS.pytest__asyncio,
     ignore_warnings: bool = _SETTINGS.pytest__ignore_warnings,
@@ -428,8 +431,8 @@ def _add_pytest(
                 "ignore::RuntimeWarning",
             )
         if len(test_paths) >= 1:
-            testpaths = _get_array(pytest, "testpaths")
-            _ensure_contains(testpaths, *test_paths)
+            testpaths_list = _get_array(pytest, "testpaths")
+            _ensure_contains(testpaths_list, *test_paths)
         if timeout is not None:
             pytest["timeout"] = str(timeout)
 
@@ -442,7 +445,7 @@ def _add_ruff(*, version: str = _SETTINGS.python_version) -> None:
 def _add_pyproject_dependency_groups_dev(
     *, version: str = _SETTINGS.python_version
 ) -> None:
-    with _yield_pyproject(desc="[dependency-groups.dev]", version=version) as doc:
+    with _yield_pyproject_toml(desc="[dependency-groups.dev]", version=version) as doc:
         dep_grps = _get_table(doc, "dependency-groups")
         dev = _get_array(dep_grps, "dev")
         _ensure_contains(dev, "dycw-utilities[test]")
@@ -452,7 +455,7 @@ def _add_pyproject_dependency_groups_dev(
 def _add_pyproject_project_name(
     name: str, /, *, version: str = _SETTINGS.python_version
 ) -> None:
-    with _yield_pyproject(desc="project.name", version=version) as doc:
+    with _yield_pyproject_toml(desc="project.name", version=version) as doc:
         proj = _get_table(doc, "project")
         proj["name"] = name
 
@@ -460,7 +463,7 @@ def _add_pyproject_project_name(
 def _add_pyproject_project_optional_dependencies_scripts(
     *, version: str = _SETTINGS.python_version
 ) -> None:
-    with _yield_pyproject(
+    with _yield_pyproject_toml(
         desc="[project.optional-dependencies.scripts]", version=version
     ) as doc:
         proj = _get_table(doc, "project")
@@ -472,7 +475,7 @@ def _add_pyproject_project_optional_dependencies_scripts(
 def _add_pyproject_uv_index(
     name: str, url: str, /, *, version: str = _SETTINGS.python_version
 ) -> None:
-    with _yield_pyproject(desc="[tool.uv.index]", version=version) as doc:
+    with _yield_pyproject_toml(desc="[tool.uv.index]", version=version) as doc:
         tool = _get_table(doc, "tool")
         uv = _get_table(tool, "uv")
         indexes = _get_aot(uv, "index")
@@ -678,33 +681,22 @@ def _yield_bump_my_version(
 
 
 @contextmanager
-def _yield_github_push(*, desc: str | None = None) -> Iterator[StrDict]:
-    with _yield_yaml_dict(".github/workflows/push.yaml", desc=desc) as dict_:
-        dict_["name"] = "push"
-        on = _get_dict(dict_, "on")
-        push = _get_dict(on, "push")
-        branches = _get_list(push, "branches")
-        _ensure_contains(branches, "master")
-        yield dict_
-
-
-@contextmanager
 def _yield_json_dict(path: PathLike, /) -> Iterator[StrDict]:
     with _yield_write_context(path, json.loads, dict, json.dumps) as dict_:
         yield dict_
 
 
 @contextmanager
-def _yield_pre_commit(*, desc: str | None = None) -> Iterator[StrDict]:
-    with _yield_yaml_dict(".pre-commit-config.yaml", desc=desc) as dict_:
+def _yield_pre_commit() -> Iterator[StrDict]:
+    with _yield_yaml_dict(".pre-commit-config.yaml") as dict_:
         yield dict_
 
 
 @contextmanager
-def _yield_pyproject(
-    *, desc: str | None = None, version: str = _SETTINGS.python_version
+def _yield_pyproject_toml(
+    *, version: str = _SETTINGS.python_version
 ) -> Iterator[TOMLDocument]:
-    with _yield_toml_doc("pyproject.toml", desc=desc) as doc:
+    with _yield_toml_doc("pyproject.toml") as doc:
         bld_sys = _get_table(doc, "build-system")
         bld_sys["build-backend"] = "uv_build"
         bld_sys["requires"] = ["uv_build"]
@@ -714,42 +706,8 @@ def _yield_pyproject(
 
 
 @contextmanager
-def _yield_pyrightconfig(
-    *, desc: str | None = None, version: str = _SETTINGS.python_version
-) -> Iterator[StrDict]:
-    with _yield_json_dict("pyrightconfig.json", desc=desc) as dict_:
-        dict_["deprecateTypingAliases"] = True
-        dict_["enableReachabilityAnalysis"] = False
-        dict_["pythonVersion"] = version
-        dict_["reportCallInDefaultInitializer"] = True
-        dict_["reportImplicitOverride"] = True
-        dict_["reportImplicitStringConcatenation"] = True
-        dict_["reportImportCycles"] = True
-        dict_["reportMissingSuperCall"] = True
-        dict_["reportMissingTypeArgument"] = False
-        dict_["reportMissingTypeStubs"] = False
-        dict_["reportPrivateImportUsage"] = False
-        dict_["reportPrivateUsage"] = False
-        dict_["reportPropertyTypeMismatch"] = True
-        dict_["reportUninitializedInstanceVariable"] = True
-        dict_["reportUnknownArgumentType"] = False
-        dict_["reportUnknownMemberType"] = False
-        dict_["reportUnknownParameterType"] = False
-        dict_["reportUnknownVariableType"] = False
-        dict_["reportUnnecessaryComparison"] = False
-        dict_["reportUnnecessaryTypeIgnoreComment"] = True
-        dict_["reportUnusedCallResult"] = True
-        dict_["reportUnusedImport"] = False
-        dict_["reportUnusedVariable"] = False
-        dict_["typeCheckingMode"] = "strict"
-        yield dict_
-
-
-@contextmanager
-def _yield_ruff(
-    *, desc: str | None = None, version: str = _SETTINGS.python_version
-) -> Iterator[TOMLDocument]:
-    with _yield_toml_doc("ruff.toml", desc=desc) as doc:
+def _yield_ruff(*, version: str = _SETTINGS.python_version) -> Iterator[TOMLDocument]:
+    with _yield_toml_doc("ruff.toml") as doc:
         doc["target-version"] = f"py{version.replace('.', '')}"
         doc["unsafe-fixes"] = True
         fmt = _get_table(doc, "format")
@@ -833,13 +791,11 @@ def _yield_write_context[T](
     get_default: Callable[[], T],
     dumps: Callable[[T], str],
     /,
-    *,
-    desc: str | None = None,
 ) -> Iterator[T]:
     path = Path(path)
 
     def run(verb: str, data: T, /) -> None:
-        _LOGGER.info("%s '%s'%s...", verb, path, "" if desc is None else f" {desc}")
+        _LOGGER.info("%s '%s'...", verb, path)
         with writer(path, overwrite=True) as temp:
             _ = temp.write_text(dumps(data))
         _ = _MODIFIED.set(True)
@@ -857,22 +813,14 @@ def _yield_write_context[T](
 
 
 @contextmanager
-def _yield_yaml_dict(
-    path: PathLike, /, *, desc: str | None = None
-) -> Iterator[StrDict]:
-    with _yield_write_context(
-        path, yaml.safe_load, dict, yaml.safe_dump, desc=desc
-    ) as dict_:
+def _yield_yaml_dict(path: PathLike, /) -> Iterator[StrDict]:
+    with _yield_write_context(path, yaml.safe_load, dict, yaml.safe_dump) as dict_:
         yield dict_
 
 
 @contextmanager
-def _yield_toml_doc(
-    path: PathLike, /, *, desc: str | None = None
-) -> Iterator[TOMLDocument]:
-    with _yield_write_context(
-        path, tomlkit.parse, document, tomlkit.dumps, desc=desc
-    ) as doc:
+def _yield_toml_doc(path: PathLike, /) -> Iterator[TOMLDocument]:
+    with _yield_write_context(path, tomlkit.parse, document, tomlkit.dumps) as doc:
         yield doc
 
 
