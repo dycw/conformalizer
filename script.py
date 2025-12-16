@@ -60,7 +60,7 @@ _MODIFIED = ContextVar("modified", default=False)
 @settings
 class Settings:
     code_version: str = option(default="0.1.0", help="Code version")
-    coverage: bool = option(default=True, help="Set up '.coveragerc.toml'")  # TODO
+    coverage: bool = option(default=True, help="Set up '.coveragerc.toml'")
     github__push__publish: bool = option(
         default=False, help="Set up 'push.yaml' publishing"
     )
@@ -137,59 +137,60 @@ def main(settings: Settings, /) -> None:
         _LOGGER.info("Dry run; exiting...")
         return
     _LOGGER.info("Running...")
-    _run_bump_my_version(version=settings.code_version)
-    _run_pre_commit_update()
-    _add_pre_commit()
+    _add_pre_commit(
+        dockerfmt=settings.pre_commit__dockerfmt,
+        prettier=settings.pre_commit__prettier,
+        ruff=settings.pre_commit__ruff,
+        shell=settings.pre_commit__shell,
+        taplo=settings.pre_commit__taplo,
+        uv=settings.pre_commit__uv,
+        uv__script=settings.pre_commit__uv__script,
+    )
     if settings.coverage:
         _add_coveragerc_toml()
-    if settings.github__push__tag:
-        _add_github_push_tag()
-    if settings.github__push__tag__major_minor:
-        _add_github_push_tag_extra("major-minor")
-    if settings.github__push__tag__major:
-        _add_github_push_tag_extra("major")
-    if settings.github__push__tag__latest:
-        _add_github_push_tag_extra("latest")
-    if settings.github__push__publish:
-        _add_github_push_publish()
-    if settings.pre_commit__dockerfmt:
-        _add_pre_commit_dockerfmt()
-    if settings.pre_commit__prettier:
-        _add_pre_commit_prettier()
-    if settings.pre_commit__ruff:
-        _add_pre_commit_ruff()
-    if settings.pre_commit__shell:
-        _add_pre_commit_shell()
-    if settings.pre_commit__taplo:
-        _add_pre_commit_taplo()
-    if settings.pre_commit__uv:
-        _add_pre_commit_uv(script=settings.pre_commit__uv__script)
-    if settings.pyproject:
-        _add_pyproject(version=settings.python_version)
-    if settings.pyproject__dependency_groups__dev:
-        _add_pyproject_dependency_groups_dev(version=settings.python_version)
-    if (name := settings.pyproject__project__name) is not None:
-        _add_pyproject_project_name(name, version=settings.python_version)
-    if settings.pyproject__project__optional_dependencies__scripts:
-        _add_pyproject_project_optional_dependencies_scripts(
-            version=settings.python_version
+    if (
+        settings.github__push__tag
+        or settings.github__push__tag__major_minor
+        or settings.github__push__tag__major
+        or settings.github__push__tag__latest
+        or settings.github__push__publish
+    ):
+        _add_github_push_yaml(
+            tag=settings.github__push__tag,
+            tag__major_minor=settings.github__push__tag__major_minor,
+            tag__major=settings.github__push__tag__major,
+            tag__latest=settings.github__push__tag__latest,
+            publish=settings.github__push__publish,
+        )
+    if (
+        settings.pyproject
+        or (settings.pyproject__project__name is not None)
+        or settings.pyproject__project__optional_dependencies__scripts
+        or (len(settings.pyproject__tool__uv__indexes) >= 1)
+    ):
+        _add_pyproject_toml(
+            version=settings.python_version,
+            project__name=settings.pyproject__project__name,
+            project__optional_dependencies__scripts=settings.pyproject__project__optional_dependencies__scripts,
+            tool__uv__indexes=settings.pyproject__tool__uv__indexes,
         )
     if settings.pyright:
-        _add_pyrightconfig(version=settings.python_version)
-    if len(include := settings.pyright_include) >= 1:
-        _add_pyrightconfig_include(*include, version=settings.python_version)
-    if settings.pytest:
-        _add_pytest()
-    if settings.pytest__asyncio:
-        _add_pytest_asyncio()
-    if settings.pytest__coverage:
-        _add_pytest_asyncio()
-    if settings.pytest__ignore_warnings:
-        _add_pytest_ignore_warnings()
-    if len(test_paths := settings.pytest_test_paths) >= 1:
-        _add_pytest_test_paths(*test_paths)
-    if (timeout := settings.pytest_timeout) is not None:
-        _add_pytest_timeout(timeout)
+        _add_pyrightconfig_json(
+            version=settings.python_version, include=settings.pyright__include
+        )
+    if (
+        settings.pytest
+        or settings.pytest__asyncio
+        or settings.pytest__ignore_warnings
+        or (len(settings.pytest__test_paths) >= 1)
+        or (settings.pytest__timeout is not None)
+    ):
+        _add_pytest_toml(
+            asyncio=settings.pytest__asyncio,
+            ignore_warnings=settings.pytest__ignore_warnings,
+            test_paths=settings.pytest__test_paths,
+            timeout=settings.pytest__timeout,
+        )
     if settings.ruff:
         _add_ruff_toml(version=settings.python_version)
     if _MODIFIED.get():
