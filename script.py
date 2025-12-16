@@ -140,7 +140,15 @@ def main(settings: Settings, /) -> None:
     _LOGGER.info("Running...")
     _run_bump_my_version(version=settings.code_version)
     _run_pre_commit_update()
-    _add_pre_commit()
+    _add_pre_commit(
+        dockerfmt=settings.pre_commit__dockerfmt,
+        prettier=settings.pre_commit__prettier,
+        ruff=settings.pre_commit__ruff,
+        shell=settings.pre_commit__shell,
+        taplo=settings.pre_commit__taplo,
+        uv=settings.pre_commit__uv,
+        uv__script=settings.pre_commit__uv__script,
+    )
     if (
         settings.github__push__tag
         or settings.github__push__tag__major_minor
@@ -150,23 +158,28 @@ def main(settings: Settings, /) -> None:
     ):
         _add_github_push_yaml(
             tag=settings.github__push__tag,
-            tag_major_minor=settings.github__push__tag__major_minor,
-            tag_major=settings.github__push__tag__major,
-            tag_latest=settings.github__push__tag__latest,
+            tag__major_minor=settings.github__push__tag__major_minor,
+            tag__major=settings.github__push__tag__major,
+            tag__latest=settings.github__push__tag__latest,
             publish=settings.github__push__publish,
         )
-    if settings.pre_commit__dockerfmt:
-        _add_pre_commit_dockerfmt()
-    if settings.pre_commit__prettier:
-        _add_pre_commit_prettier()
-    if settings.pre_commit__ruff:
-        _add_pre_commit_ruff()
-    if settings.pre_commit__shell:
-        _add_pre_commit_shell()
-    if settings.pre_commit__taplo:
-        _add_pre_commit_taplo()
-    if settings.pre_commit__uv:
-        _add_pre_commit_uv(script=settings.pre_commit__uv__script)
+    if (
+        settings.pre_commit__dockerfmt
+        or settings.pre_commit__prettier
+        or settings.pre_commit__ruff
+        or settings.pre_commit__shell
+        or settings.pre_commit__taplo
+        or settings.pre_commit__uv
+    ):
+        _add_pre_commit(
+            dockerfmt=settings.pre_commit__dockerfmt,
+            prettier=settings.pre_commit__prettier,
+            ruff=settings.pre_commit__ruff,
+            shell=settings.pre_commit__shell,
+            taplo=settings.pre_commit__taplo,
+            uv=settings.pre_commit__uv,
+            uv__script=settings.pre_commit__uv__script,
+        )
     if settings.pyproject:
         _add_pyproject(version=settings.python_version)
     if settings.pyproject__dependency_groups__dev:
@@ -200,9 +213,9 @@ def main(settings: Settings, /) -> None:
 def _add_github_push_yaml(
     *,
     tag: bool = _SETTINGS.github__push__tag,
-    tag_major_minor: bool = _SETTINGS.github__push__tag__major_minor,
-    tag_major: bool = _SETTINGS.github__push__tag__major,
-    tag_latest: bool = _SETTINGS.github__push__tag__latest,
+    tag__major_minor: bool = _SETTINGS.github__push__tag__major_minor,
+    tag__major: bool = _SETTINGS.github__push__tag__major,
+    tag__latest: bool = _SETTINGS.github__push__tag__latest,
     publish: bool = _SETTINGS.github__push__publish,
 ) -> None:
     with _yield_yaml_dict(".github/workflows/push.yaml") as dict_:
@@ -221,16 +234,16 @@ def _add_github_push_yaml(
                 {"name": "Tag latest commit", "uses": "dycw/action-tag-commit@latest"},
                 extra={"with": {"token": "${{ secrets.GITHUB_TOKEN }}"}},
             )
-            if tag_major_minor:
+            if tag__major_minor:
                 with_ = _get_dict(steps_dict, "with")
                 with_["major-minor"] = True
-            if tag_major:
+            if tag__major:
                 with_ = _get_dict(steps_dict, "with")
                 with_["major"] = True
-            if tag_latest:
+            if tag__latest:
                 with_ = _get_dict(steps_dict, "with")
                 with_["latest"] = True
-            if tag_major_minor:
+            if tag__major_minor:
                 with_ = _get_dict(steps_dict, "with")
                 with_["major-minor"] = True
         if publish:
@@ -266,98 +279,94 @@ def _add_github_push_yaml(
             )
 
 
-def _add_pre_commit() -> None:
-    url = "https://github.com/pre-commit/pre-commit-hooks"
+def _add_pre_commit(
+    *,
+    dockerfmt: bool = _SETTINGS.pre_commit__dockerfmt,
+    prettier: bool = _SETTINGS.pre_commit__prettier,
+    ruff: bool = _SETTINGS.pre_commit__ruff,
+    shell: bool = _SETTINGS.pre_commit__shell,
+    taplo: bool = _SETTINGS.pre_commit__taplo,
+    uv: bool = _SETTINGS.pre_commit__uv,
+    uv__script: str | None = _SETTINGS.pre_commit__uv__script,
+) -> None:
     with _yield_pre_commit() as dict_:
         _ensure_pre_commit_repo(
             dict_, "https://github.com/dycw/pre-commit-hook-nitpick", "nitpick"
         )
-        _ensure_pre_commit_repo(dict_, url, "check-executables-have-shebangs")
-        _ensure_pre_commit_repo(dict_, url, "check-merge-conflict")
-        _ensure_pre_commit_repo(dict_, url, "check-symlinks")
-        _ensure_pre_commit_repo(dict_, url, "destroyed-symlinks")
-        _ensure_pre_commit_repo(dict_, url, "detect-private-key")
-        _ensure_pre_commit_repo(dict_, url, "end-of-file-fixer")
+        pre_com_url = "https://github.com/pre-commit/pre-commit-hooks"
+        _ensure_pre_commit_repo(dict_, pre_com_url, "check-executables-have-shebangs")
+        _ensure_pre_commit_repo(dict_, pre_com_url, "check-merge-conflict")
+        _ensure_pre_commit_repo(dict_, pre_com_url, "check-symlinks")
+        _ensure_pre_commit_repo(dict_, pre_com_url, "destroyed-symlinks")
+        _ensure_pre_commit_repo(dict_, pre_com_url, "detect-private-key")
+        _ensure_pre_commit_repo(dict_, pre_com_url, "end-of-file-fixer")
         _ensure_pre_commit_repo(
-            dict_, url, "mixed-line-ending", args=("add", ["--fix=lf"])
+            dict_, pre_com_url, "mixed-line-ending", args=("add", ["--fix=lf"])
         )
-        _ensure_pre_commit_repo(dict_, url, "no-commit-to-branch")
+        _ensure_pre_commit_repo(dict_, pre_com_url, "no-commit-to-branch")
         _ensure_pre_commit_repo(
-            dict_, url, "pretty-format-json", args=("add", ["--autofix"])
+            dict_, pre_com_url, "pretty-format-json", args=("add", ["--autofix"])
         )
-        _ensure_pre_commit_repo(dict_, url, "no-commit-to-branch")
-        _ensure_pre_commit_repo(dict_, url, "trailing-whitespace")
-
-
-def _add_pre_commit_dockerfmt() -> None:
-    with _yield_pre_commit() as dict_:
-        _ensure_pre_commit_repo(
-            dict_,
-            "https://github.com/reteps/dockerfmt",
-            "dockerfmt",
-            args=("add", ["--newline", "--write"]),
-        )
-
-
-def _add_pre_commit_prettier() -> None:
-    with _yield_pre_commit() as dict_:
-        _ensure_pre_commit_repo(
-            dict_,
-            "local",
-            "prettier",
-            name="prettier",
-            entry="npx prettier --write",
-            language="system",
-            types_or=["markdown", "yaml"],
-        )
-
-
-def _add_pre_commit_ruff() -> None:
-    url = "https://github.com/astral-sh/ruff-pre-commit"
-    with _yield_pre_commit() as dict_:
-        _ensure_pre_commit_repo(dict_, url, "ruff-check", args=("add", ["--fix"]))
-        _ensure_pre_commit_repo(dict_, url, "ruff-format")
-
-
-def _add_pre_commit_shell() -> None:
-    with _yield_pre_commit() as dict_:
-        _ensure_pre_commit_repo(
-            dict_, "https://github.com/scop/pre-commit-shfmt", "shfmt"
-        )
-        _ensure_pre_commit_repo(
-            dict_, "https://github.com/koalaman/shellcheck-precommit", "shellcheck"
-        )
-
-
-def _add_pre_commit_taplo() -> None:
-    with _yield_pre_commit() as dict_:
-        _ensure_pre_commit_repo(
-            dict_,
-            "https://github.com/compwa/taplo-pre-commit",
-            "taplo-format",
-            args=(
-                "exact",
-                [
-                    "--option",
-                    "indent_tables=true",
-                    "--option",
-                    "indent_entries=true",
-                    "--option",
-                    "reorder_keys=true",
-                ],
-            ),
-        )
-
-
-def _add_pre_commit_uv(*, script: str | None = None) -> None:
-    with _yield_pre_commit() as dict_:
-        _ensure_pre_commit_repo(
-            dict_,
-            "https://github.com/astral-sh/uv-pre-commit",
-            "uv-lock",
-            files=None if script is None else rf"^{escape(script)}$",
-            args=("add", ["--upgrade"] if script is None else [f"--script={script}"]),
-        )
+        _ensure_pre_commit_repo(dict_, pre_com_url, "no-commit-to-branch")
+        _ensure_pre_commit_repo(dict_, pre_com_url, "trailing-whitespace")
+        if dockerfmt:
+            _ensure_pre_commit_repo(
+                dict_,
+                "https://github.com/reteps/dockerfmt",
+                "dockerfmt",
+                args=("add", ["--newline", "--write"]),
+            )
+        if prettier:
+            _ensure_pre_commit_repo(
+                dict_,
+                "local",
+                "prettier",
+                name="prettier",
+                entry="npx prettier --write",
+                language="system",
+                types_or=["markdown", "yaml"],
+            )
+        if ruff:
+            ruff_url = "https://github.com/astral-sh/ruff-pre-commit"
+            _ensure_pre_commit_repo(
+                dict_, ruff_url, "ruff-check", args=("add", ["--fix"])
+            )
+            _ensure_pre_commit_repo(dict_, ruff_url, "ruff-format")
+        if shell:
+            _ensure_pre_commit_repo(
+                dict_, "https://github.com/scop/pre-commit-shfmt", "shfmt"
+            )
+            _ensure_pre_commit_repo(
+                dict_, "https://github.com/koalaman/shellcheck-precommit", "shellcheck"
+            )
+        if taplo:
+            _ensure_pre_commit_repo(
+                dict_,
+                "https://github.com/compwa/taplo-pre-commit",
+                "taplo-format",
+                args=(
+                    "exact",
+                    [
+                        "--option",
+                        "indent_tables=true",
+                        "--option",
+                        "indent_entries=true",
+                        "--option",
+                        "reorder_keys=true",
+                    ],
+                ),
+            )
+        if uv or (uv__script is not None):
+            _ensure_pre_commit_repo(
+                dict_,
+                "https://github.com/astral-sh/uv-pre-commit",
+                "uv-lock",
+                files=None if uv__script is None else rf"^{escape(uv__script)}$",
+                args=(
+                    "add",
+                    ["--upgrade"] if uv__script is None else [f"--script={uv__script}"],
+                ),
+            )
 
 
 def _add_pyproject(*, version: str = _SETTINGS.python_version) -> None:
