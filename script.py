@@ -220,8 +220,12 @@ def _add_github_push_yaml(
     tag__latest: bool = _SETTINGS.github__push__tag__latest,
     publish: bool = _SETTINGS.github__push__publish,
 ) -> None:
-    _add_github_push_tag()
-    with _yield_github_push() as dict_:
+    with _yield_yaml_dict(".github/workflows/push.yaml") as dict_:
+        dict_["name"] = "push"
+        on = _get_dict(dict_, "on")
+        push = _get_dict(on, "push")
+        branches = _get_list(push, "branches")
+        _ensure_contains(branches, "master")
         jobs = _get_dict(dict_, "jobs")
         if tag or publish:
             tag_dict = _get_dict(jobs, "tag")
