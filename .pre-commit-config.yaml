@@ -13,7 +13,7 @@ repos:
         files: ^script\.py$
         id: uv-lock
     repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.17
+    rev: 0.9.18
   - hooks:
       - args:
           - --option
@@ -40,7 +40,7 @@ repos:
           - --ruff
         id: nitpick
     repo: https://github.com/dycw/pre-commit-hook-nitpick
-    rev: 0.3.2
+    rev: 0.3.3
   - hooks:
       - id: replace-sequence-str
     repo: https://github.com/dycw/pre-commit-hooks
