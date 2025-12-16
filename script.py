@@ -137,6 +137,8 @@ def main(settings: Settings, /) -> None:
         _LOGGER.info("Dry run; exiting...")
         return
     _LOGGER.info("Running...")
+    _run_bump_my_version(version=settings.code_version)
+    _run_pre_commit_update()
     _add_pre_commit(
         dockerfmt=settings.pre_commit__dockerfmt,
         prettier=settings.pre_commit__prettier,
@@ -184,12 +186,15 @@ def main(settings: Settings, /) -> None:
         or settings.pytest__ignore_warnings
         or (len(settings.pytest__test_paths) >= 1)
         or (settings.pytest__timeout is not None)
+        or settings.coverage
     ):
         _add_pytest_toml(
             asyncio=settings.pytest__asyncio,
             ignore_warnings=settings.pytest__ignore_warnings,
             test_paths=settings.pytest__test_paths,
             timeout=settings.pytest__timeout,
+            coverage=settings.coverage,
+            pyproject__project__name=settings.pyproject__project__name,
         )
     if settings.ruff:
         _add_ruff_toml(version=settings.python_version)
@@ -448,6 +453,8 @@ def _add_pytest_toml(
     ignore_warnings: bool = _SETTINGS.pytest__ignore_warnings,
     test_paths: list[str] = _SETTINGS.pytest__test_paths,
     timeout: int | None = _SETTINGS.pytest__timeout,
+    coverage: bool = _SETTINGS.coverage,
+    pyproject__project__name: str | None = _SETTINGS.pyproject__project__name,
 ) -> None:
     with _yield_toml_doc("pytest.toml") as doc:
         pytest = _get_table(doc, "pytest")
@@ -460,6 +467,13 @@ def _add_pytest_toml(
             "--durations=10",
             "--durations-min=10",
         )
+        if coverage and (pyproject__project__name is not None):
+            _ensure_contains(
+                addopts,
+                f"--cov={pyproject__project__name.replace('-', '_')}",
+                "--cov-config=.coveragerc.toml",
+                "--cov-report=html",
+            )
         pytest["collect_imported_tests"] = False
         pytest["empty_parameter_set_mark"] = "fail_at_collect"
         filterwarnings = _get_array(pytest, "filterwarnings")
