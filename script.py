@@ -68,9 +68,7 @@ class Settings:
         default=False, help="Set up 'push--tag.yaml' with the 'major' tag"
     )
     github__push_tag__latest: bool = option(
-        default=True,
-        help="Set up 'push--tag.yaml' with the 'latest' tag",
-        # default=False, help="Set up 'push--tag.yaml' with the 'latest' tag"
+        default=False, help="Set up 'push--tag.yaml' with the 'latest' tag"
     )
     python_version: str = option(default="3.14", help="Python version")
     pre_commit__dockerfmt: bool = option(
