@@ -112,9 +112,9 @@ class Settings:
         factory=list, help="Set up 'pyrightconfig.json' [include]"
     )
     pytest: bool = option(default=False, help="Set up 'pytest.toml'")
-    pytest_asyncio: bool = option(default=False, help="Set up 'pytest.toml' asyncio_*")
-    pytest_coverage: bool = option(default=False, help="Set up 'pytest.toml' coverage")
-    pytest_ignore_warnings: bool = option(
+    pytest__asyncio: bool = option(default=False, help="Set up 'pytest.toml' asyncio_*")
+    pytest__coverage: bool = option(default=False, help="Set up 'pytest.toml' coverage")
+    pytest__ignore_warnings: bool = option(
         default=False, help="Set up 'pytest.toml' filterwarnings"
     )
     pytest__test_paths: list[str] = option(
@@ -180,11 +180,11 @@ def main(settings: Settings, /) -> None:
         _add_pyrightconfig_include(*include, version=settings.python_version)
     if settings.pytest:
         _add_pytest()
-    if settings.pytest_asyncio:
+    if settings.pytest__asyncio:
         _add_pytest_asyncio()
-    if settings.pytest_coverage:
+    if settings.pytest__coverage:
         _add_pytest_asyncio()
-    if settings.pytest_ignore_warnings:
+    if settings.pytest__ignore_warnings:
         _add_pytest_ignore_warnings()
     if len(test_paths := settings.pytest_test_paths) >= 1:
         _add_pytest_test_paths(*test_paths)
