@@ -60,7 +60,10 @@ _MODIFIED = ContextVar("modified", default=False)
 @settings
 class Settings:
     code_version: str = option(default="0.1.0", help="Code version")
-    github__push__tag: bool = option(default=False, help="Set up 'push.yaml'")
+    github__push__publish: bool = option(
+        default=False, help="Set up 'push.yaml' publishing"
+    )
+    github__push__tag: bool = option(default=False, help="Set up 'push.yaml' tagging")
     github__push__tag__major_minor: bool = option(
         default=False, help="Set up 'push.yaml' with the 'major.minor' tag"
     )
@@ -146,6 +149,8 @@ def main(settings: Settings, /) -> None:
         _add_github_push_tag_extra("major")
     if settings.github__push__tag__latest:
         _add_github_push_tag_extra("latest")
+    if settings.github__push__publish:
+        _add_github_push_publish()
     if settings.pre_commit__dockerfmt:
         _add_pre_commit_dockerfmt()
     if settings.pre_commit__prettier:
@@ -189,6 +194,42 @@ def main(settings: Settings, /) -> None:
         _add_ruff(version=settings.python_version)
     if _MODIFIED.get():
         sys.exit(1)
+
+
+def _add_github_push_publish() -> None:
+    _add_github_push_tag()
+    with _yield_github_push() as dict_:
+        jobs = _get_dict(dict_, "jobs")
+        publish = _get_dict(jobs, "publish")
+        environment = _get_dict(publish, "environment")
+        environment["name"] = "pypi"
+        needs = _get_list(publish, "needs")
+        _ensure_contains(needs, "tag")
+        permissions = _get_dict(publish, "permissions")
+        permissions["id-write"] = "write"
+        publish["runs-on"] = "ubuntu-latest"
+        steps = _get_list(publish, "steps")
+        _ = _ensure_contains_partial(
+            steps, {"name": "Check out repository", "uses": "actions/checkout@v6"}
+        )
+        _ = _ensure_contains_partial(
+            steps,
+            {
+                "name": "Install 'uv'",
+                "uses": "astral-sh/setup-uv@7",
+                "with": {"enable-cache": True},
+            },
+        )
+        _ = _ensure_contains_partial(
+            steps, {"name": "Build Python package", "run": "uv build"}
+        )
+        _ = _ensure_contains_partial(
+            steps,
+            {
+                "name": "Upload distribution",
+                "run": "uv publish --trusted-publishing always",
+            },
+        )
 
 
 def _add_github_push_tag() -> None:
