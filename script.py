@@ -6,6 +6,7 @@
 #   "dycw-utilities",
 #   "pytest-xdist",
 #   "pyyaml",
+#   "rich",
 #   "tomlkit",
 #   "typed-settings[attrs, click]",
 #   "xdg-base-dirs",
@@ -26,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Literal, assert_never
 import tomlkit
 import yaml
 from click import command
+from rich.pretty import pretty_repr
 from tomlkit import TOMLDocument, aot, array, document, table
 from tomlkit.exceptions import NonExistentKey
 from tomlkit.items import AoT, Array, Table
@@ -33,7 +35,7 @@ from typed_settings import click_options, option, settings
 from utilities.atomicwrites import writer
 from utilities.click import CONTEXT_SETTINGS_HELP_OPTION_NAMES
 from utilities.functions import ensure_class
-from utilities.iterables import OneEmptyError, one
+from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.logging import basic_config
 from utilities.pathlib import get_repo_root
 from utilities.version import Version, VersionLike, parse_version
@@ -66,7 +68,9 @@ class Settings:
         default=False, help="Set up 'push--tag.yaml' with the 'major' tag"
     )
     github__push_tag__latest: bool = option(
-        default=False, help="Set up 'push--tag.yaml' with the 'latest' tag"
+        default=True,
+        help="Set up 'push--tag.yaml' with the 'latest' tag",
+        # default=False, help="Set up 'push--tag.yaml' with the 'latest' tag"
     )
     python_version: str = option(default="3.14", help="Python version")
     pre_commit__dockerfmt: bool = option(
@@ -199,7 +203,10 @@ def _add_github_push_tag_extra(key: str, /) -> None:
         jobs = _get_dict(push_tag_dict, "jobs")
         tag = _get_dict(jobs, "tag")
         steps = _get_list(tag, "steps")
-        step_dict = _get_partial_dict(steps, {"name": "Tag latest commit"})
+        step_dict = _get_partial_dict(
+            steps,
+            {"name": "Tag latest commit", "uses": "dycw/action-tag-commit@latest"},
+        )
         with_ = _get_dict(step_dict, "with")
         with_[key] = True
 
@@ -418,13 +425,13 @@ def _ensure_contains(array: HasAppend, /, *objs: Any) -> None:
 
 
 def _ensure_contains_partial(
-    array: HasAppend, partial: StrDict, /, *, extra: StrDict | None = None
+    container: HasAppend, partial: StrDict, /, *, extra: StrDict | None = None
 ) -> StrDict:
     try:
-        return _get_partial_dict(array, partial)
+        return _get_partial_dict(container, partial, skip_log=True)
     except OneEmptyError:
         dict_ = partial | ({} if extra is None else extra)
-        array.append(dict_)
+        container.append(dict_)
         return dict_
 
 
@@ -490,18 +497,38 @@ def _get_dict(container: HasSetDefault, key: str, /) -> StrDict:
     return ensure_class(container.setdefault(key, {}), dict)
 
 
-def _get_list(containe: HasSetDefault, key: str, /) -> list[Any]:
-    return ensure_class(containe.setdefault(key, []), list)
+def _get_list(container: HasSetDefault, key: str, /) -> list[Any]:
+    return ensure_class(container.setdefault(key, []), list)
 
 
-def _get_partial_dict(container: Iterable[Any], dict_: StrDict, /) -> StrDict:
-    return one(
-        d
-        for d in container
-        if isinstance(d, dict)
-        and set(dict_).issubset(d)
-        and all(d[k] == v for k, v in dict_.items())
-    )
+def _get_partial_dict(
+    iterable: Iterable[Any], dict_: StrDict, /, *, skip_log: bool = False
+) -> StrDict:
+    try:
+        return one(
+            d
+            for d in iterable
+            if isinstance(d, dict)
+            and set(dict_).issubset(d)
+            and all(d[k] == v for k, v in dict_.items())
+        )
+    except OneEmptyError:
+        if not skip_log:
+            _LOGGER.exception(
+                "Expected %s to contain %s (as a partial)",
+                pretty_repr(iterable),
+                pretty_repr(dict_),
+            )
+        raise
+    except OneNonUniqueError as error:
+        _LOGGER.exception(
+            "Expected %s to contain %s uniquely (as a partial); got %s, %s and perhaps more",
+            pretty_repr(iterable),
+            pretty_repr(dict_),
+            pretty_repr(error.first),
+            pretty_repr(error.second),
+        )
+        raise
 
 
 def _get_table(container: HasSetDefault, key: str, /) -> Table:
@@ -592,11 +619,8 @@ def _yield_github_push_tag(*, desc: str | None = None) -> Iterator[StrDict]:
         steps = _get_list(tag, "steps")
         _ = _ensure_contains_partial(
             steps,
-            {
-                "name": "Tag latest commit",
-                "uses": "dycw/action-tag-commit@latest",
-                "with": {"token": "${{ secrets.GITHUB_TOKEN }}"},
-            },
+            {"name": "Tag latest commit", "uses": "dycw/action-tag-commit@latest"},
+            extra={"with": {"token": "${{ secrets.GITHUB_TOKEN }}"}},
         )
         yield push_tag_dict
 
