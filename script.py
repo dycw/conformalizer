@@ -270,7 +270,7 @@ def _add_github_push_yaml(
                 steps,
                 {
                     "name": "Install 'uv'",
-                    "uses": "astral-sh/setup-uv@7",
+                    "uses": "astral-sh/setup-uv@v7",
                     "with": {"enable-cache": True},
                 },
             )
@@ -753,7 +753,7 @@ def _run_pre_commit_update() -> None:
         run()
     else:
         prev = ZonedDateTime.parse_iso(text.rstrip("\n"))
-        if prev < (get_now() - 4 * HOUR):
+        if prev < (get_now() - 12 * HOUR):
             run()
 
 
