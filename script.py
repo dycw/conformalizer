@@ -96,9 +96,6 @@ class Settings:
         default=None, help="Set up '.pre-commit-config.yaml' uv lock script"
     )
     pyproject: bool = option(default=False, help="Set up 'pyproject.toml'")
-    pyproject__dependency_groups__dev: bool = option(
-        default=False, help="Set up 'pyproject.toml' [dependency-groups.dev]"
-    )
     pyproject__project__name: str | None = option(
         default=None, help="Set up 'pyproject.toml' [project.name]"
     )
@@ -164,40 +161,28 @@ def main(settings: Settings, /) -> None:
             publish=settings.github__push__publish,
         )
     if (
-        settings.pre_commit__dockerfmt
-        or settings.pre_commit__prettier
-        or settings.pre_commit__ruff
-        or settings.pre_commit__shell
-        or settings.pre_commit__taplo
-        or settings.pre_commit__uv
+        settings.pyproject
+        or (settings.pyproject__project__name is not None)
+        or settings.pyproject__project__optional_dependencies__scripts
+        or (len(settings.pyproject__tool__uv__indexes) >= 1)
     ):
-        _add_pre_commit(
-            dockerfmt=settings.pre_commit__dockerfmt,
-            prettier=settings.pre_commit__prettier,
-            ruff=settings.pre_commit__ruff,
-            shell=settings.pre_commit__shell,
-            taplo=settings.pre_commit__taplo,
-            uv=settings.pre_commit__uv,
-            uv__script=settings.pre_commit__uv__script,
+        _add_pyproject_toml(
+            version=settings.python_version,
+            project__name=settings.pyproject__project__name,
+            project__optional_dependencies__scripts=settings.pyproject__project__optional_dependencies__scripts,
+            tool__uv__indexes=settings.pyproject__tool__uv__indexes,
         )
-    if settings.pyproject:
-        _add_pyproject(version=settings.python_version)
-    if settings.pyproject__dependency_groups__dev:
-        _add_pyproject_dependency_groups_dev(version=settings.python_version)
-    if (name := settings.pyproject__project__name) is not None:
-        _add_pyproject_project_name(name, version=settings.python_version)
-    if settings.pyproject__project__optional_dependencies__scripts:
-        _add_pyproject_project_optional_dependencies_scripts(
-            version=settings.python_version
-        )
-    if len(indexes := settings.pyproject__tool__uv__indexes) >= 1:
-        for name, url in indexes:
-            _add_pyproject_uv_index(name, url, version=settings.python_version)
     if settings.pyright:
         _add_pyrightconfig_json(
             version=settings.python_version, include=settings.pyright__include
         )
-    if settings.pytest:
+    if (
+        settings.pytest
+        or settings.pytest__asyncio
+        or settings.pytest__ignore_warnings
+        or (len(settings.pytest__test_paths) >= 1)
+        or (settings.pytest__timeout is not None)
+    ):
         _add_pytest_toml(
             asyncio=settings.pytest__asyncio,
             ignore_warnings=settings.pytest__ignore_warnings,
@@ -369,9 +354,39 @@ def _add_pre_commit(
             )
 
 
-def _add_pyproject(*, version: str = _SETTINGS.python_version) -> None:
-    with _yield_pyproject_toml(version=version):
-        ...
+def _add_pyproject_toml(
+    *,
+    version: str = _SETTINGS.python_version,
+    project__name: str | None = _SETTINGS.pyproject__project__name,
+    project__optional_dependencies__scripts: bool = _SETTINGS.pyproject__project__optional_dependencies__scripts,
+    tool__uv__indexes: list[tuple[str, str]] = _SETTINGS.pyproject__tool__uv__indexes,
+) -> None:
+    with _yield_toml_doc("pyproject.toml") as doc:
+        build_system = _get_table(doc, "build-system")
+        build_system["build-backend"] = "uv_build"
+        build_system["requires"] = ["uv_build"]
+        project = _get_table(doc, "project")
+        project["requires-python"] = f">= {version}"
+        if project__name is not None:
+            project["name"] = project__name
+        dependency_groups = _get_table(doc, "dependency-groups")
+        dev = _get_array(dependency_groups, "dev")
+        _ensure_contains(dev, "dycw-utilities[test]")
+        _ensure_contains(dev, "rich")
+        if project__optional_dependencies__scripts:
+            optional_dependencies = _get_table(project, "optional-dependencies")
+            scripts = _get_array(optional_dependencies, "scripts")
+            _ensure_contains(scripts, "click >=8.3.1")
+        if len(tool__uv__indexes) >= 1:
+            tool = _get_table(doc, "tool")
+            uv = _get_table(tool, "uv")
+            indexes = _get_aot(uv, "index")
+            for name, url in tool__uv__indexes:
+                index = table()
+                index["explicit"] = True
+                index["name"] = name
+                index["url"] = url
+                _ensure_aot_contains(indexes, index)
 
 
 def _add_pyrightconfig_json(
@@ -455,48 +470,6 @@ def _add_pytest_toml(
 def _add_ruff(*, version: str = _SETTINGS.python_version) -> None:
     with _yield_ruff(version=version):
         ...
-
-
-def _add_pyproject_dependency_groups_dev(
-    *, version: str = _SETTINGS.python_version
-) -> None:
-    with _yield_pyproject_toml(version=version) as doc:
-        dep_grps = _get_table(doc, "dependency-groups")
-        dev = _get_array(dep_grps, "dev")
-        _ensure_contains(dev, "dycw-utilities[test]")
-        _ensure_contains(dev, "rich")
-
-
-def _add_pyproject_project_name(
-    name: str, /, *, version: str = _SETTINGS.python_version
-) -> None:
-    with _yield_pyproject_toml(version=version) as doc:
-        proj = _get_table(doc, "project")
-        proj["name"] = name
-
-
-def _add_pyproject_project_optional_dependencies_scripts(
-    *, version: str = _SETTINGS.python_version
-) -> None:
-    with _yield_pyproject_toml(version=version) as doc:
-        proj = _get_table(doc, "project")
-        opt_deps = _get_table(proj, "optional-dependencies")
-        scripts = _get_array(opt_deps, "scripts")
-        _ensure_contains(scripts, "click >=8.3.1")
-
-
-def _add_pyproject_uv_index(
-    name: str, url: str, /, *, version: str = _SETTINGS.python_version
-) -> None:
-    with _yield_pyproject_toml(version=version) as doc:
-        tool = _get_table(doc, "tool")
-        uv = _get_table(tool, "uv")
-        indexes = _get_aot(uv, "index")
-        index = table()
-        index["explicit"] = True
-        index["name"] = name
-        index["url"] = url
-        _ensure_aot_contains(indexes, index)
 
 
 def _ensure_aot_contains(array: AoT, /, *tables: Table) -> None:
@@ -703,19 +676,6 @@ def _yield_json_dict(path: PathLike, /) -> Iterator[StrDict]:
 def _yield_pre_commit() -> Iterator[StrDict]:
     with _yield_yaml_dict(".pre-commit-config.yaml") as dict_:
         yield dict_
-
-
-@contextmanager
-def _yield_pyproject_toml(
-    *, version: str = _SETTINGS.python_version
-) -> Iterator[TOMLDocument]:
-    with _yield_toml_doc("pyproject.toml") as doc:
-        bld_sys = _get_table(doc, "build-system")
-        bld_sys["build-backend"] = "uv_build"
-        bld_sys["requires"] = ["uv_build"]
-        project = _get_table(doc, "project")
-        project["requires-python"] = f">= {version}"
-        yield doc
 
 
 @contextmanager
