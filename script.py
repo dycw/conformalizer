@@ -38,7 +38,7 @@ from utilities.functions import ensure_class
 from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.logging import basic_config
 from utilities.pathlib import get_repo_root
-from utilities.version import Version, VersionLike, parse_version
+from utilities.version import Version, parse_version
 from utilities.whenever import HOUR, get_now
 from whenever import ZonedDateTime
 from xdg_base_dirs import xdg_cache_home
@@ -59,7 +59,6 @@ _MODIFIED = ContextVar("modified", default=False)
 
 @settings
 class Settings:
-    code_version: str = option(default="0.1.0", help="Code version")
     coverage: bool = option(default=False, help="Set up '.coveragerc.toml'")
     github__push__publish: bool = option(
         default=False, help="Set up 'push.yaml' publishing"
@@ -140,7 +139,7 @@ def main(settings: Settings, /) -> None:
         return
     _LOGGER.info("Running...")
     _check_versions()
-    _run_bump_my_version(version=settings.code_version)
+    _run_bump_my_version()
     _run_pre_commit_update()
     _add_pre_commit(
         dockerfmt=settings.pre_commit__dockerfmt,
@@ -568,11 +567,10 @@ def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
 
 
 def _check_versions() -> None:
-    version = check_output(
-        ["bump-my-version", "show", "current_version"], text=True
-    ).rstrip("\n")
+    with _yield_bump_my_version() as doc:
+        version = _get_version(doc)
     try:
-        _ = check_call(["bump-my-version", "replace", "--current-version", version])
+        _set_version(version)
     except CalledProcessError:
         msg = f"Inconsistent versions; got be {version}"
         raise ValueError(msg) from None
@@ -716,17 +714,15 @@ def _get_version(obj: TOMLDocument | str, /) -> Version:
             assert_never(never)
 
 
-def _run_bump_my_version(*, version: VersionLike = _SETTINGS.code_version) -> None:
+def _run_bump_my_version() -> None:
     if search("template", str(get_repo_root())):
         return
 
-    def run(doc: TOMLDocument, version: Version, /) -> None:
-        tool = _get_table(doc, "tool")
-        bumpversion = _get_table(tool, "bumpversion")
-        bumpversion["current_version"] = str(version)
+    def run(version: Version, /) -> None:
+        _set_version(version)
         _ = _MODIFIED.set(True)
 
-    with _yield_bump_my_version(version=version) as doc:
+    with _yield_bump_my_version() as doc:
         current = _get_version(doc)
         try:
             text = check_output(
@@ -734,11 +730,11 @@ def _run_bump_my_version(*, version: VersionLike = _SETTINGS.code_version) -> No
             ).rstrip("\n")
             prev = _get_version(text)
         except (CalledProcessError, NonExistentKey):
-            run(doc, Version(0, 1, 1))
+            run(Version(0, 1, 1))
         else:
             patch = prev.bump_patch()
             if current not in {patch, prev.bump_minor(), prev.bump_major()}:
-                run(doc, patch)
+                run(patch)
 
 
 def _run_pre_commit_update() -> None:
@@ -760,15 +756,17 @@ def _run_pre_commit_update() -> None:
             run()
 
 
+def _set_version(version: Version, /) -> None:
+    _ = check_call(["bump-my-version", "replace", "--current-version", str(version)])
+
+
 @contextmanager
-def _yield_bump_my_version(
-    *, version: VersionLike = _SETTINGS.code_version
-) -> Iterator[TOMLDocument]:
+def _yield_bump_my_version() -> Iterator[TOMLDocument]:
     with _yield_toml_doc(".bumpversion.toml") as doc:
         tool = _get_table(doc, "tool")
         bumpversion = _get_table(tool, "bumpversion")
         bumpversion["allow_dirty"] = True
-        bumpversion.setdefault("current_version", str(version))
+        bumpversion.setdefault("current_version", str(Version(0, 1, 0)))
         yield doc
 
 
