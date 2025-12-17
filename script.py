@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from logging import getLogger
 from pathlib import Path
@@ -38,7 +38,7 @@ from utilities.functions import ensure_class
 from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.logging import basic_config
 from utilities.pathlib import get_repo_root
-from utilities.version import Version, parse_version
+from utilities.version import ParseVersionError, Version, parse_version
 from utilities.whenever import HOUR, get_now
 from whenever import ZonedDateTime
 from xdg_base_dirs import xdg_cache_home
@@ -568,7 +568,7 @@ def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
 
 def _check_versions() -> None:
     with _yield_bump_my_version() as doc:
-        version = _get_version(doc)
+        version = _get_version_from_bump_toml(doc)
     try:
         _set_version(version)
     except CalledProcessError:
@@ -702,40 +702,53 @@ def _get_table(container: HasSetDefault, key: str, /) -> Table:
     return ensure_class(container.setdefault(key, table()), Table)
 
 
-def _get_version(obj: TOMLDocument | str, /) -> Version:
+def _get_version_from_bump_toml(obj: TOMLDocument | str, /) -> Version:
     match obj:
         case TOMLDocument() as doc:
             tool = _get_table(doc, "tool")
             bumpversion = _get_table(tool, "bumpversion")
             return parse_version(str(bumpversion["current_version"]))
         case str() as text:
-            return _get_version(tomlkit.parse(text))
+            return _get_version_from_bump_toml(tomlkit.parse(text))
         case never:
             assert_never(never)
+
+
+def _get_version_from_git_show() -> Version:
+    text = check_output(["git", "show", "origin/master:.bumpversion.toml"], text=True)
+    return _get_version_from_bump_toml(text.rstrip("\n"))
+
+
+def _get_version_from_git_tag() -> Version:
+    text = check_output(["git", "tag", "--points-at", "origin/master"], text=True)
+    for line in text.splitlines():
+        with suppress(ParseVersionError):
+            return parse_version(line)
+    msg = "No valid version from 'git tag'"
+    raise ValueError(msg)
 
 
 def _run_bump_my_version() -> None:
     if search("template", str(get_repo_root())):
         return
 
-    def bump() -> None:
-        _ = check_call(["bump-my-version", "bump", "patch"])
+    def run(version: Version, /) -> None:
+        _LOGGER.info("Setting version to %s...", version)
+        _set_version(version)
         _ = _MODIFIED.set(True)
 
-    with _yield_bump_my_version() as doc:
-        current = _get_version(doc)
     try:
-        text = check_output(
-            ["git", "show", "origin/master:.bumpversion.toml"], text=True
-        ).rstrip("\n")
-        prev = _get_version(text)
-    except (CalledProcessError, NonExistentKey):
-        bump()
-    else:
-        patch = prev.bump_patch()
-        if current not in {patch, prev.bump_minor(), prev.bump_major()}:
-            _LOGGER.info("prev=%s, current=%s, patch=%s", prev, current, patch)
-            bump()
+        prev = _get_version_from_git_tag()
+    except (CalledProcessError, ValueError):
+        try:
+            prev = _get_version_from_git_show()
+        except (CalledProcessError, ParseVersionError, NonExistentKey):
+            run(Version(0, 1, 0))
+            return
+    with _yield_bump_my_version() as doc:
+        current = _get_version_from_bump_toml(doc)
+    if current not in {prev.bump_patch(), prev.bump_minor(), prev.bump_major()}:
+        run(prev.bump_patch())
 
 
 def _run_pre_commit_update() -> None:
@@ -758,7 +771,13 @@ def _run_pre_commit_update() -> None:
 
 
 def _set_version(version: Version, /) -> None:
-    _ = check_call(["bump-my-version", "replace", "--new-version", str(version)])
+    _ = check_call([
+        "bump-my-version",
+        "replace",
+        "--new-version",
+        str(version),
+        ".bumpversion.toml",
+    ])
 
 
 @contextmanager
