@@ -656,10 +656,6 @@ def _get_aot(container: HasSetDefault, key: str, /) -> AoT:
     return ensure_class(container.setdefault(key, aot()), AoT)
 
 
-def _get_aot_strict(container: HasSetDefault, key: str, /) -> AoT:
-    return ensure_class(container[key], AoT)
-
-
 def _get_array(container: HasSetDefault, key: str, /) -> Array:
     return ensure_class(container.setdefault(key, array()), Array)
 
