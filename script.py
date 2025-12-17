@@ -569,7 +569,6 @@ def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
 def _check_versions() -> None:
     with _yield_bump_my_version() as doc:
         version = _get_version(doc)
-    return
     _LOGGER.info("In checking, got %s", version)
     try:
         _ = check_call([
@@ -731,18 +730,18 @@ def _run_bump_my_version() -> None:
 
     with _yield_bump_my_version() as doc:
         current = _get_version(doc)
-        try:
-            text = check_output(
-                ["git", "show", "origin/master:.bumpversion.toml"], text=True
-            ).rstrip("\n")
-            prev = _get_version(text)
-        except (CalledProcessError, NonExistentKey):
+    try:
+        text = check_output(
+            ["git", "show", "origin/master:.bumpversion.toml"], text=True
+        ).rstrip("\n")
+        prev = _get_version(text)
+    except (CalledProcessError, NonExistentKey):
+        bump()
+    else:
+        patch = prev.bump_patch()
+        if current not in {patch, prev.bump_minor(), prev.bump_major()}:
+            _LOGGER.info("prev=%s, current=%s, patch=%s", prev, current, patch)
             bump()
-        else:
-            patch = prev.bump_patch()
-            if current not in {patch, prev.bump_minor(), prev.bump_major()}:
-                _LOGGER.info("prev=%s, current=%s, patch=%s", prev, current, patch)
-                bump()
 
 
 def _run_pre_commit_update() -> None:
