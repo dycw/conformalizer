@@ -775,22 +775,12 @@ def _run_pre_commit_update() -> None:
 
 
 def _set_version(version: Version, /) -> None:
-    with _yield_bump_my_version() as doc:
-        tool = _get_table(doc, "tool")
-        bumpversion = _get_table(tool, "bumpversion")
-        try:
-            files_aot = _get_aot_strict(bumpversion, "files")
-        except KeyError:
-            extra: list[str] = []
-        else:
-            extra: list[str] = [f["filename"] for f in files_aot]
     _ = check_call([
         "bump-my-version",
         "replace",
         "--new-version",
         str(version),
         ".bumpversion.toml",
-        *extra,
     ])
 
 
