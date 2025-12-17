@@ -262,25 +262,12 @@ def _add_github_push_yaml(
             publish_dict["runs-on"] = "ubuntu-latest"
             steps = _get_list(publish_dict, "steps")
             _ = _ensure_contains_partial(
-                steps, {"name": "Check out repository", "uses": "actions/checkout@v6"}
-            )
-            _ = _ensure_contains_partial(
                 steps,
                 {
-                    "name": "Install 'uv'",
-                    "uses": "astral-sh/setup-uv@v7",
-                    "with": {"enable-cache": True},
+                    "name": "Build Python package and upload distribution",
+                    "uses": "dycw/action-uv-publish@latest",
                 },
-            )
-            _ = _ensure_contains_partial(
-                steps, {"name": "Build Python package", "run": "uv build"}
-            )
-            _ = _ensure_contains_partial(
-                steps,
-                {
-                    "name": "Upload distribution",
-                    "run": "uv publish --trusted-publishing always",
-                },
+                extra={"with": {"token": "${{ secrets.GITHUB_TOKEN }}"}},
             )
 
 
