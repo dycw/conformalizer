@@ -723,8 +723,6 @@ def _run_bump_my_version() -> None:
         _ = check_call(["bump-my-version", "bump", "patch"])
         _ = _MODIFIED.set(True)
 
-    with _yield_bump_my_version() as doc:
-        current = _get_version(doc)
     try:
         text = check_output(
             ["git", "tag", "--points-at", "origin/master"], text=True
@@ -739,8 +737,9 @@ def _run_bump_my_version() -> None:
         except (CalledProcessError, ParseVersionError, NonExistentKey):
             bump()
             return
-    patch = prev.bump_patch()
-    if current not in {patch, prev.bump_minor(), prev.bump_major()}:
+    with _yield_bump_my_version() as doc:
+        current = _get_version(doc)
+    if current not in {prev.bump_patch(), prev.bump_minor(), prev.bump_major()}:
         bump()
 
 
