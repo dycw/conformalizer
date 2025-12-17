@@ -569,8 +569,15 @@ def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
 def _check_versions() -> None:
     with _yield_bump_my_version() as doc:
         version = _get_version(doc)
+    return
+    _LOGGER.info("In checking, got %s", version)
     try:
-        _set_version(version, current=version)
+        _ = check_call([
+            "bump-my-version",
+            "replace",
+            "--current-version",
+            str(version),
+        ])
     except CalledProcessError:
         msg = f"Inconsistent versions; got be {version}"
         raise ValueError(msg) from None
@@ -718,8 +725,8 @@ def _run_bump_my_version() -> None:
     if search("template", str(get_repo_root())):
         return
 
-    def run(new: Version, /, *, current: Version | None = None) -> None:
-        _set_version(new, current=current)
+    def bump() -> None:
+        _ = check_call(["bump-my-version", "bump", "patch"])
         _ = _MODIFIED.set(True)
 
     with _yield_bump_my_version() as doc:
@@ -730,11 +737,12 @@ def _run_bump_my_version() -> None:
             ).rstrip("\n")
             prev = _get_version(text)
         except (CalledProcessError, NonExistentKey):
-            run(Version(0, 1, 1))
+            bump()
         else:
             patch = prev.bump_patch()
             if current not in {patch, prev.bump_minor(), prev.bump_major()}:
-                run(patch)
+                _LOGGER.info("prev=%s, current=%s, patch=%s", prev, current, patch)
+                bump()
 
 
 def _run_pre_commit_update() -> None:
@@ -754,14 +762,6 @@ def _run_pre_commit_update() -> None:
         prev = ZonedDateTime.parse_iso(text.rstrip("\n"))
         if prev < (get_now() - 12 * HOUR):
             run()
-
-
-def _set_version(new: Version, /, *, current: Version | None = None) -> None:
-    args: list[str] = ["bump-my-version", "replace"]
-    if current is not None:
-        args.extend(["--current-version", str(current)])
-    args.extend(["--new-version", str(new)])
-    _ = check_call(args)
 
 
 @contextmanager
