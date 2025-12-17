@@ -232,7 +232,7 @@ def _add_github_push_yaml(
         branches = _get_list(push, "branches")
         _ensure_contains(branches, "master")
         jobs = _get_dict(dict_, "jobs")
-        if tag or publish:
+        if tag:
             tag_dict = _get_dict(jobs, "tag")
             tag_dict["runs-on"] = "ubuntu-latest"
             steps = _get_list(tag_dict, "steps")
@@ -257,8 +257,6 @@ def _add_github_push_yaml(
             publish_dict = _get_dict(jobs, "publish")
             environment = _get_dict(publish_dict, "environment")
             environment["name"] = "pypi"
-            needs = _get_list(publish_dict, "needs")
-            _ensure_contains(needs, "tag")
             permissions = _get_dict(publish_dict, "permissions")
             permissions["id-token"] = "write"
             publish_dict["runs-on"] = "ubuntu-latest"
