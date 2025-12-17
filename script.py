@@ -718,23 +718,24 @@ def _run_bump_my_version() -> None:
     if search("template", str(get_repo_root())):
         return
 
-    def run(version: Version, /) -> None:
-        _set_version(version)
+    def bump() -> None:
+        _ = check_call(["bump-my-version", "bump", "patch"])
         _ = _MODIFIED.set(True)
 
     with _yield_bump_my_version() as doc:
         current = _get_version(doc)
-        try:
-            text = check_output(
-                ["git", "show", "origin/master:.bumpversion.toml"], text=True
-            ).rstrip("\n")
-            prev = _get_version(text)
-        except (CalledProcessError, NonExistentKey):
-            run(Version(0, 1, 1))
-        else:
-            patch = prev.bump_patch()
-            if current not in {patch, prev.bump_minor(), prev.bump_major()}:
-                run(patch)
+    try:
+        text = check_output(
+            ["git", "show", "origin/master:.bumpversion.toml"], text=True
+        ).rstrip("\n")
+        prev = _get_version(text)
+    except (CalledProcessError, NonExistentKey):
+        bump()
+    else:
+        patch = prev.bump_patch()
+        if current not in {patch, prev.bump_minor(), prev.bump_major()}:
+            _LOGGER.info("prev=%s, current=%s, patch=%s", prev, current, patch)
+            bump()
 
 
 def _run_pre_commit_update() -> None:
