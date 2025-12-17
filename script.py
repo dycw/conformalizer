@@ -569,7 +569,6 @@ def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
 def _check_versions() -> None:
     with _yield_bump_my_version() as doc:
         version = _get_version(doc)
-    _LOGGER.info("In checking, got %s", version)
     try:
         _ = check_call([
             "bump-my-version",
