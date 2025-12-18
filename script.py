@@ -34,7 +34,7 @@ from tomlkit.exceptions import NonExistentKey
 from tomlkit.items import AoT, Array, Table
 from typed_settings import click_options, option, settings
 from utilities.atomicwrites import writer
-from utilities.click import CONTEXT_SETTINGS_HELP_OPTION_NAMES
+from utilities.click import CONTEXT_SETTINGS
 from utilities.functions import ensure_class
 from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.logging import basic_config
@@ -145,7 +145,7 @@ class Settings:
 _SETTINGS = Settings()
 
 
-@command(**CONTEXT_SETTINGS_HELP_OPTION_NAMES)
+@command(**CONTEXT_SETTINGS)
 @click_options(Settings, "app", show_envvars_in_help=True)
 def main(settings: Settings, /) -> None:
     if settings.dry_run:
