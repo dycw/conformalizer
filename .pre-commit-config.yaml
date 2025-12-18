@@ -27,6 +27,7 @@ repos:
     rev: v0.9.3
   - hooks:
       - args:
+          - --description=Pre-commit hook to nitpick your project
           - --github--push--tag
           - --pre-commit--prettier
           - --pre-commit--ruff
@@ -38,10 +39,11 @@ repos:
           - --pytest
           - --pytest--test-paths=tests
           - --readme
+          - --repo-name=pre-commit-hook-nitpick
           - --ruff
         id: nitpick
     repo: https://github.com/dycw/pre-commit-hook-nitpick
-    rev: 0.3.13
+    rev: 0.3.16
   - hooks:
       - id: replace-sequence-str
     repo: https://github.com/dycw/pre-commit-hooks
