@@ -109,6 +109,9 @@ class Settings:
         default=False,
         help="Set up 'pyproject.toml' [project.optional-dependencies.scripts]",
     )
+    pyproject__tool__uv__build_backend: str | None = option(
+        default=None, help="Set up 'pyproject.toml' [uv.tool.build-backend]"
+    )
     pyproject__tool__uv__indexes: list[tuple[str, str]] = option(
         factory=list, help="Set up 'pyproject.toml' [[uv.tool.index]]"
     )
@@ -177,6 +180,7 @@ def main(settings: Settings, /) -> None:
         or (settings.pyproject__project__description is not None)
         or (settings.pyproject__project__name is not None)
         or settings.pyproject__project__optional_dependencies__scripts
+        or (settings.pyproject__tool__uv__build_backend is not None)
         or (len(settings.pyproject__tool__uv__indexes) >= 1)
         or settings.readme
     ):
@@ -186,6 +190,7 @@ def main(settings: Settings, /) -> None:
             project__name=settings.pyproject__project__name,
             project__readme=settings.readme,
             project__optional_dependencies__scripts=settings.pyproject__project__optional_dependencies__scripts,
+            tool__uv__build_backend=settings.pyproject__tool__uv__build_backend,
             tool__uv__indexes=settings.pyproject__tool__uv__indexes,
         )
     if settings.pyright:
@@ -387,6 +392,7 @@ def _add_pyproject_toml(
     project__name: str | None = _SETTINGS.pyproject__project__name,
     project__readme: bool = _SETTINGS.readme,
     project__optional_dependencies__scripts: bool = _SETTINGS.pyproject__project__optional_dependencies__scripts,
+    tool__uv__build_backend: str | None = _SETTINGS.pyproject__tool__uv__build_backend,
     tool__uv__indexes: list[tuple[str, str]] = _SETTINGS.pyproject__tool__uv__indexes,
 ) -> None:
     with _yield_toml_doc("pyproject.toml") as doc:
@@ -410,6 +416,12 @@ def _add_pyproject_toml(
             optional_dependencies = _get_table(project, "optional-dependencies")
             scripts = _get_array(optional_dependencies, "scripts")
             _ensure_contains(scripts, "click >=8.3.1")
+        if tool__uv__build_backend is not None:
+            tool = _get_table(doc, "tool")
+            uv = _get_table(tool, "uv")
+            build_backend = _get_table(uv, "build-backend")
+            build_backend["module-name"] = tool__uv__build_backend
+            build_backend["module-root"] = "src"
         if len(tool__uv__indexes) >= 1:
             tool = _get_table(doc, "tool")
             uv = _get_table(tool, "uv")

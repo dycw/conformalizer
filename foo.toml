@@ -1,6 +1,0 @@
-
-[tool]
-  [tool.uv]
-    [tool.uv.build-backend]
-      module-name = "tag_commit"
-      module-root = "src"
