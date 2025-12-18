@@ -194,7 +194,7 @@ def main(settings: Settings, /) -> None:
         _add_pyproject_toml(
             version=settings.python_version,
             description=settings.description,
-            package_name=settings.python_package_name_use,
+            package_name=settings.package_name,
             readme=settings.readme,
             optional_dependencies__scripts=settings.pyproject__project__optional_dependencies__scripts,
             python_package_name=settings.python_package_name,
