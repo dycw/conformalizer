@@ -21,6 +21,7 @@ from contextvars import ContextVar
 from logging import getLogger
 from pathlib import Path
 from re import escape, search
+from string import Template
 from subprocess import CalledProcessError, check_call, check_output
 from typing import TYPE_CHECKING, Any, Literal, assert_never
 
@@ -78,6 +79,7 @@ class Settings:
     github__push__tag__latest: bool = option(
         default=False, help="Set up 'push.yaml' with the 'latest' tag"
     )
+    package_name: str | None = option(default=None, help="Package name")
     pre_commit__dockerfmt: bool = option(
         default=False, help="Set up '.pre-commit-config.yaml' dockerfmt"
     )
@@ -100,15 +102,9 @@ class Settings:
         default=None, help="Set up '.pre-commit-config.yaml' uv lock script"
     )
     pyproject: bool = option(default=False, help="Set up 'pyproject.toml'")
-    pyproject__project__name: str | None = option(
-        default=None, help="Set up 'pyproject.toml' [project.name]"
-    )
     pyproject__project__optional_dependencies__scripts: bool = option(
         default=False,
         help="Set up 'pyproject.toml' [project.optional-dependencies.scripts]",
-    )
-    pyproject__tool__uv__build_backend: str | None = option(
-        default=None, help="Set up 'pyproject.toml' [uv.tool.build-backend]"
     )
     pyproject__tool__uv__indexes: list[tuple[str, str]] = option(
         factory=list, help="Set up 'pyproject.toml' [[uv.tool.index]]"
@@ -128,11 +124,22 @@ class Settings:
     pytest__timeout: int | None = option(
         default=None, help="Set up 'pytest.toml' timeout"
     )
+    python_package_name: str | None = option(
+        default=None, help="Python package name override"
+    )
     python_version: str = option(default="3.14", help="Python version")
     readme: bool = option(default=False, help="Set up 'README.md'")
     repo_name: str | None = option(default=None, help="Repo name")
     ruff: bool = option(default=False, help="Set up 'ruff.toml'")
     dry_run: bool = option(default=False, help="Dry run the CLI")
+
+    @property
+    def python_package_name_use(self) -> str | None:
+        if self.python_package_name is not None:
+            return self.python_package_name
+        if self.package_name is not None:
+            return self.package_name.replace("-", "_")
+        return None
 
 
 _SETTINGS = Settings()
@@ -145,6 +152,10 @@ def main(settings: Settings, /) -> None:
         _LOGGER.info("Dry run; exiting...")
         return
     _LOGGER.info("Running...")
+    _add_bumpversion_toml(
+        pyproject=settings.pyproject,
+        python_package_name_use=settings.python_package_name_use,
+    )
     _check_versions()
     _run_bump_my_version()
     _run_pre_commit_update()
@@ -177,18 +188,17 @@ def main(settings: Settings, /) -> None:
         )
     if (
         settings.pyproject
-        or (settings.pyproject__project__name is not None)
         or settings.pyproject__project__optional_dependencies__scripts
-        or (settings.pyproject__tool__uv__build_backend is not None)
         or (len(settings.pyproject__tool__uv__indexes) >= 1)
     ):
         _add_pyproject_toml(
             version=settings.python_version,
-            project__description=settings.description,
-            project__name=settings.pyproject__project__name,
-            project__readme=settings.readme,
-            project__optional_dependencies__scripts=settings.pyproject__project__optional_dependencies__scripts,
-            tool__uv__build_backend=settings.pyproject__tool__uv__build_backend,
+            description=settings.description,
+            package_name=settings.python_package_name_use,
+            readme=settings.readme,
+            optional_dependencies__scripts=settings.pyproject__project__optional_dependencies__scripts,
+            python_package_name=settings.python_package_name,
+            python_package_name_use=settings.python_package_name_use,
             tool__uv__indexes=settings.pyproject__tool__uv__indexes,
         )
     if settings.pyright:
@@ -208,7 +218,7 @@ def main(settings: Settings, /) -> None:
             test_paths=settings.pytest__test_paths,
             timeout=settings.pytest__timeout,
             coverage=settings.coverage,
-            pyproject__project__name=settings.pyproject__project__name,
+            python_package_name=settings.python_package_name_use,
         )
     if settings.readme:
         _add_readme_md(name=settings.repo_name, description=settings.description)
@@ -216,6 +226,31 @@ def main(settings: Settings, /) -> None:
         _add_ruff_toml(version=settings.python_version)
     if _MODIFIED.get():
         sys.exit(1)
+
+
+def _add_bumpversion_toml(
+    *,
+    pyproject: bool = _SETTINGS.pyproject,
+    python_package_name_use: str | None = _SETTINGS.python_package_name_use,
+) -> None:
+    with _yield_bumpversion_toml() as doc:
+        tool = _get_table(doc, "tool")
+        bumpversion = _get_table(tool, "bumpversion")
+        if pyproject:
+            files = _get_aot(bumpversion, "files")
+            _ensure_aot_contains(
+                files,
+                _bumpversion_toml_file("pyproject.toml", 'version = "${version}"'),
+            )
+        if python_package_name_use is not None:
+            files = _get_aot(bumpversion, "files")
+            _ensure_aot_contains(
+                files,
+                _bumpversion_toml_file(
+                    f"src/{python_package_name_use}/__init__.py",
+                    '__version__ = "${version}"',
+                ),
+            )
 
 
 def _add_coveragerc_toml() -> None:
@@ -299,7 +334,7 @@ def _add_pre_commit(
     uv: bool = _SETTINGS.pre_commit__uv,
     uv__script: str | None = _SETTINGS.pre_commit__uv__script,
 ) -> None:
-    with _yield_pre_commit() as dict_:
+    with _yield_yaml_dict(".pre-commit-config.yaml") as dict_:
         _ensure_pre_commit_repo(
             dict_, "https://github.com/dycw/pre-commit-hook-nitpick", "nitpick"
         )
@@ -382,11 +417,12 @@ def _add_pre_commit(
 def _add_pyproject_toml(
     *,
     version: str = _SETTINGS.python_version,
-    project__description: str | None = _SETTINGS.description,
-    project__name: str | None = _SETTINGS.pyproject__project__name,
-    project__readme: bool = _SETTINGS.readme,
-    project__optional_dependencies__scripts: bool = _SETTINGS.pyproject__project__optional_dependencies__scripts,
-    tool__uv__build_backend: str | None = _SETTINGS.pyproject__tool__uv__build_backend,
+    description: str | None = _SETTINGS.description,
+    package_name: str | None = _SETTINGS.package_name,
+    readme: bool = _SETTINGS.readme,
+    optional_dependencies__scripts: bool = _SETTINGS.pyproject__project__optional_dependencies__scripts,
+    python_package_name: str | None = _SETTINGS.python_package_name,
+    python_package_name_use: str | None = _SETTINGS.python_package_name_use,
     tool__uv__indexes: list[tuple[str, str]] = _SETTINGS.pyproject__tool__uv__indexes,
 ) -> None:
     with _yield_toml_doc("pyproject.toml") as doc:
@@ -395,26 +431,26 @@ def _add_pyproject_toml(
         build_system["requires"] = ["uv_build"]
         project = _get_table(doc, "project")
         project["requires-python"] = f">= {version}"
-        if project__description is not None:
-            project["description"] = project__description
-        if project__name is not None:
-            project["name"] = project__name
-        if project__readme:
+        if description is not None:
+            project["description"] = description
+        if package_name is not None:
+            project["name"] = package_name
+        if readme:
             project["readme"] = "README.md"
         project.setdefault("version", "0.1.0")
         dependency_groups = _get_table(doc, "dependency-groups")
         dev = _get_array(dependency_groups, "dev")
         _ensure_contains(dev, "dycw-utilities[test]")
         _ensure_contains(dev, "rich")
-        if project__optional_dependencies__scripts:
+        if optional_dependencies__scripts:
             optional_dependencies = _get_table(project, "optional-dependencies")
             scripts = _get_array(optional_dependencies, "scripts")
             _ensure_contains(scripts, "click >=8.3.1")
-        if tool__uv__build_backend is not None:
+        if python_package_name is not None:
             tool = _get_table(doc, "tool")
             uv = _get_table(tool, "uv")
             build_backend = _get_table(uv, "build-backend")
-            build_backend["module-name"] = tool__uv__build_backend
+            build_backend["module-name"] = python_package_name_use
             build_backend["module-root"] = "src"
         if len(tool__uv__indexes) >= 1:
             tool = _get_table(doc, "tool")
@@ -470,7 +506,7 @@ def _add_pytest_toml(
     test_paths: list[str] = _SETTINGS.pytest__test_paths,
     timeout: int | None = _SETTINGS.pytest__timeout,
     coverage: bool = _SETTINGS.coverage,
-    pyproject__project__name: str | None = _SETTINGS.pyproject__project__name,
+    python_package_name: str | None = _SETTINGS.python_package_name_use,
 ) -> None:
     with _yield_toml_doc("pytest.toml") as doc:
         pytest = _get_table(doc, "pytest")
@@ -483,10 +519,10 @@ def _add_pytest_toml(
             "--durations=10",
             "--durations-min=10",
         )
-        if coverage and (pyproject__project__name is not None):
+        if coverage and (python_package_name is not None):
             _ensure_contains(
                 addopts,
-                f"--cov={pyproject__project__name.replace('-', '_')}",
+                f"--cov={python_package_name}",
                 "--cov-config=.coveragerc.toml",
                 "--cov-report=html",
             )
@@ -517,7 +553,7 @@ def _add_pytest_toml(
 
 def _add_readme_md(
     *,
-    name: str | None = _SETTINGS.pyproject__project__name,
+    name: str | None = _SETTINGS.package_name,
     description: str | None = _SETTINGS.description,
 ) -> None:
     with _yield_text_file("README.md") as temp:
@@ -606,9 +642,16 @@ def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
         isort["split-on-trailing-comma"] = False
 
 
+def _bumpversion_toml_file(path: PathLike, template: str, /) -> Table:
+    tab = table()
+    tab["filename"] = str(path)
+    tab["search"] = Template(template).substitute(version="{current_version}")
+    tab["replace"] = Template(template).substitute(version="{current_version}")
+    return tab
+
+
 def _check_versions() -> None:
-    with _yield_bump_my_version() as doc:
-        version = _get_version_from_bump_toml(doc)
+    version = _get_version_from_bump_toml()
     try:
         _set_version(version)
     except CalledProcessError:
@@ -742,21 +785,24 @@ def _get_table(container: HasSetDefault, key: str, /) -> Table:
     return ensure_class(container.setdefault(key, table()), Table)
 
 
-def _get_version_from_bump_toml(obj: TOMLDocument | str, /) -> Version:
+def _get_version_from_bump_toml(*, obj: TOMLDocument | str | None = None) -> Version:
     match obj:
-        case TOMLDocument() as doc:
-            tool = _get_table(doc, "tool")
+        case TOMLDocument() as obj:
+            tool = _get_table(obj, "tool")
             bumpversion = _get_table(tool, "bumpversion")
             return parse_version(str(bumpversion["current_version"]))
-        case str() as text:
-            return _get_version_from_bump_toml(tomlkit.parse(text))
+        case str() as obj:
+            return _get_version_from_bump_toml(obj=tomlkit.parse(obj))
+        case None:
+            with _yield_bumpversion_toml() as obj:
+                return _get_version_from_bump_toml(obj=obj)
         case never:
             assert_never(never)
 
 
 def _get_version_from_git_show() -> Version:
     text = check_output(["git", "show", "origin/master:.bumpversion.toml"], text=True)
-    return _get_version_from_bump_toml(text.rstrip("\n"))
+    return _get_version_from_bump_toml(obj=text.rstrip("\n"))
 
 
 def _get_version_from_git_tag() -> Version:
@@ -785,8 +831,7 @@ def _run_bump_my_version() -> None:
         except (CalledProcessError, ParseVersionError, NonExistentKey):
             run(Version(0, 1, 0))
             return
-    with _yield_bump_my_version() as doc:
-        current = _get_version_from_bump_toml(doc)
+    current = _get_version_from_bump_toml()
     if current not in {prev.bump_patch(), prev.bump_minor(), prev.bump_major()}:
         run(prev.bump_patch())
 
@@ -821,7 +866,7 @@ def _set_version(version: Version, /) -> None:
 
 
 @contextmanager
-def _yield_bump_my_version() -> Iterator[TOMLDocument]:
+def _yield_bumpversion_toml() -> Iterator[TOMLDocument]:
     with _yield_toml_doc(".bumpversion.toml") as doc:
         tool = _get_table(doc, "tool")
         bumpversion = _get_table(tool, "bumpversion")
@@ -833,12 +878,6 @@ def _yield_bump_my_version() -> Iterator[TOMLDocument]:
 @contextmanager
 def _yield_json_dict(path: PathLike, /) -> Iterator[StrDict]:
     with _yield_write_context(path, json.loads, dict, json.dumps) as dict_:
-        yield dict_
-
-
-@contextmanager
-def _yield_pre_commit() -> Iterator[StrDict]:
-    with _yield_yaml_dict(".pre-commit-config.yaml") as dict_:
         yield dict_
 
 
