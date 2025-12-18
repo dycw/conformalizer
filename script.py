@@ -38,6 +38,7 @@ from utilities.functions import ensure_class
 from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.logging import basic_config
 from utilities.pathlib import get_repo_root
+from utilities.tempfile import TemporaryDirectory, TemporaryFile
 from utilities.version import ParseVersionError, Version, parse_version
 from utilities.whenever import HOUR, get_now
 from whenever import ZonedDateTime
@@ -519,12 +520,13 @@ def _add_readme_md(
     name: str | None = _SETTINGS.pyproject__project__name,
     description: str | None = _SETTINGS.description,
 ) -> None:
-    lines: list[str] = []
-    if name is not None:
-        lines.append(f"# `{name}`")
-    if description is not None:
-        lines.append(description)
-    _ = Path("README.md").write_text("\n\n".join(lines))
+    with _yield_text_file("README.md") as temp:
+        lines: list[str] = []
+        if name is not None:
+            lines.append(f"# `{name}`")
+        if description is not None:
+            lines.append(description)
+        _ = temp.write_text("\n\n".join(lines))
 
 
 def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
@@ -872,6 +874,29 @@ def _yield_write_context[T](
 def _yield_yaml_dict(path: PathLike, /) -> Iterator[StrDict]:
     with _yield_write_context(path, yaml.safe_load, dict, yaml.safe_dump) as dict_:
         yield dict_
+
+
+@contextmanager
+def _yield_text_file(path: PathLike, /) -> Iterator[Path]:
+    path = Path(path)
+
+    def run(verb: str, temp: Path, /) -> None:
+        _LOGGER.info("%s '%s'...", verb, path)
+        with writer(path, overwrite=True) as writer_temp:
+            _ = writer_temp.write_text(temp.read_text())
+        _ = _MODIFIED.set(True)
+
+    try:
+        current = path.read_text()
+    except FileNotFoundError:
+        with TemporaryFile() as temp:
+            yield temp
+            run("Writing", temp)
+    else:
+        with TemporaryFile() as temp:
+            yield temp
+            if temp.read_text() != current:
+                run("Writing", temp)
 
 
 @contextmanager
