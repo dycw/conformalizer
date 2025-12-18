@@ -646,7 +646,7 @@ def _bumpversion_toml_file(path: PathLike, template: str, /) -> Table:
     tab = table()
     tab["filename"] = str(path)
     tab["search"] = Template(template).substitute(version="{current_version}")
-    tab["replace"] = Template(template).substitute(version="{current_version}")
+    tab["replace"] = Template(template).substitute(version="{new_version}")
     return tab
 
 
