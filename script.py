@@ -2,14 +2,14 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
-#   "click",
-#   "dycw-utilities",
-#   "pytest-xdist",
-#   "pyyaml",
-#   "rich",
-#   "tomlkit",
-#   "typed-settings[attrs, click]",
-#   "xdg-base-dirs",
+#   "click >= 8.3.1, < 8.4",
+#   "dycw-utilities >= 0.170.0, < 0.171",
+#   "pytest-xdist >= 3.8.0, < 3.9",
+#   "pyyaml >= 6.0.3, < 6.1",
+#   "rich >= 14.2.0, < 14.3",
+#   "tomlkit >= 0.13.3, < 0.14",
+#   "typed-settings[attrs, click] >= 25.3.0, < 25.4",
+#   "xdg-base-dirs >= 6.0.2, < 6.1",
 # ]
 # ///
 from __future__ import annotations
@@ -32,7 +32,7 @@ from rich.pretty import pretty_repr
 from tomlkit import TOMLDocument, aot, array, document, table
 from tomlkit.exceptions import NonExistentKey
 from tomlkit.items import AoT, Array, Table
-from typed_settings import click_options, option, settings
+from typed_settings import EnvLoader, click_options, option, settings
 from utilities.atomicwrites import writer
 from utilities.click import CONTEXT_SETTINGS
 from utilities.functions import ensure_class
@@ -146,7 +146,7 @@ _SETTINGS = Settings()
 
 
 @command(**CONTEXT_SETTINGS)
-@click_options(Settings, "app", show_envvars_in_help=True)
+@click_options(Settings, [EnvLoader("")], show_envvars_in_help=True)
 def main(settings: Settings, /) -> None:
     if settings.dry_run:
         _LOGGER.info("Dry run; exiting...")

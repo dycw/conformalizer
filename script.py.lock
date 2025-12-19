@@ -4,14 +4,14 @@ requires-python = ">=3.14"
 
 [manifest]
 requirements = [
-    { name = "click" },
-    { name = "dycw-utilities" },
-    { name = "pytest-xdist" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "tomlkit" },
-    { name = "typed-settings", extras = ["attrs", "click"] },
-    { name = "xdg-base-dirs" },
+    { name = "click", specifier = ">=8.3.1,<8.4" },
+    { name = "dycw-utilities", specifier = ">=0.170.0,<0.171" },
+    { name = "pytest-xdist", specifier = ">=3.8.0,<3.9" },
+    { name = "pyyaml", specifier = ">=6.0.3,<6.1" },
+    { name = "rich", specifier = ">=14.2.0,<14.3" },
+    { name = "tomlkit", specifier = ">=0.13.3,<0.14" },
+    { name = "typed-settings", extras = ["attrs", "click"], specifier = ">=25.3.0,<25.4" },
+    { name = "xdg-base-dirs", specifier = ">=6.0.2,<6.1" },
 ]
 
 [[package]]
