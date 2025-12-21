@@ -161,6 +161,7 @@ def main(settings: Settings, /) -> None:
     _check_versions()
     _run_bump_my_version()
     _run_pre_commit_update()
+    _update_action_file_extensions()
     _update_action_versions()
     _add_pre_commit(
         dockerfmt=settings.pre_commit__dockerfmt,
@@ -868,6 +869,17 @@ def _set_version(version: Version, /) -> None:
     ])
 
 
+def _update_action_file_extensions() -> None:
+    try:
+        paths = list(Path(".github").rglob("**/*.yml"))
+    except FileNotFoundError:
+        return
+    for path in paths:
+        new = path.with_suffix(".yaml")
+        _LOGGER.info("Renaming '%s' -> '%s'...", path, new)
+        _ = path.rename(new)
+
+
 def _update_action_versions() -> None:
     try:
         paths = list(Path(".github").rglob("**/*.yaml"))
@@ -881,7 +893,7 @@ def _update_action_versions() -> None:
     }
     for path, (action, version) in product(paths, versions.items()):
         text = sub(
-            rf"^(\s*uses: {action})@.+$",
+            rf"^(\s*- uses: {action})@.+$",
             rf"\1@{version}",
             path.read_text(),
             flags=MULTILINE,
