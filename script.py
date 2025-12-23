@@ -89,6 +89,9 @@ class Settings:
         default=False,
         help="Set up 'pull-request.yaml' pytest with the lowest-direct resolution",
     )
+    github__pull_request__ruff: bool = option(
+        default=False, help="Set up 'pull-request.yaml' ruff"
+    )
     github__push__tag__latest: bool = option(
         default=False, help="Set up 'push.yaml' tagging"
     )
@@ -204,6 +207,7 @@ def main(settings: Settings, /) -> None:
         or settings.github__pull_request__pytest__python_version__3_14
         or settings.github__pull_request__pytest__resolution__highest
         or settings.github__pull_request__pytest__resolution__lowest_direct
+        or settings.github__pull_request__ruff
     ):
         _add_github_pull_request_yaml(
             pytest__os__windows=settings.github__pull_request__pytest__os__windows,
@@ -214,6 +218,7 @@ def main(settings: Settings, /) -> None:
             pytest__resolution__highest=settings.github__pull_request__pytest__resolution__highest,
             pytest__resolution__lowest_direct=settings.github__pull_request__pytest__resolution__lowest_direct,
             pytest__timeout=settings.pytest__timeout,
+            ruff=settings.ruff,
             script=settings.script,
         )
     if (
@@ -322,6 +327,7 @@ def _add_github_pull_request_yaml(
     pytest__resolution__highest: bool = _SETTINGS.github__pull_request__pytest__resolution__highest,
     pytest__resolution__lowest_direct: bool = _SETTINGS.github__pull_request__pytest__resolution__lowest_direct,
     pytest__timeout: int | None = _SETTINGS.pytest__timeout,
+    ruff: bool = _SETTINGS.github__pull_request__ruff,
     script: str | None = _SETTINGS.script,
 ) -> None:
     with _yield_yaml_dict(".github/workflows/pull-request.yaml") as dict_:
@@ -348,18 +354,20 @@ def _add_github_pull_request_yaml(
             )
             pytest_dict["runs-on"] = "${{ matrix.os }}"
             steps = _get_list(pytest_dict, "steps")
-            _ = _ensure_contains_partial(
+            steps_dict = _ensure_contains_partial(
                 steps,
-                {"name": "Run pytest", "uses": "dycw/action-pytest@latest"},
+                {"name": "Run 'pytest'", "uses": "dycw/action-pytest@latest"},
                 extra={
                     "with": {
                         "token": "${{ secrets.GITHUB_TOKEN }}",
                         "python-version": "${{ matrix.python-version }}",
                         "resolution": "${{ matrix.resolution }}",
                     }
-                    | ({} if script is None else {"with-requirements": script})
                 },
             )
+            if script is not None:
+                with_ = _get_dict(steps_dict, "with")
+                with_["with-requirements"] = script
             strategy_dict = _get_dict(pytest_dict, "strategy")
             strategy_dict["fail-fast"] = False
             matrix = _get_dict(strategy_dict, "matrix")
@@ -382,6 +390,13 @@ def _add_github_pull_request_yaml(
                 _ensure_contains(resolution, "lowest-direct")
             if pytest__timeout is not None:
                 pytest_dict["timeout-minutes"] = max(round(pytest__timeout / 60), 1)
+        if ruff:
+            ruff_dict = _get_dict(jobs, "ruff")
+            ruff_dict["runs-on"] = "ubuntu-latest"
+            steps = _get_list(ruff_dict, "steps")
+            _ensure_contains(
+                steps, {"name": "Run 'ruff'", "uses": "dycw/action-ruff@latest"}
+            )
 
 
 def _add_github_push_yaml(
