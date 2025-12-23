@@ -22,8 +22,9 @@ from itertools import product
 from logging import getLogger
 from pathlib import Path
 from re import MULTILINE, escape, search, sub
+from shutil import copyfile
 from string import Template
-from subprocess import CalledProcessError, check_call, check_output
+from subprocess import CalledProcessError
 from typing import TYPE_CHECKING, Any, Literal, assert_never
 
 import tomlkit
@@ -33,13 +34,14 @@ from rich.pretty import pretty_repr
 from tomlkit import TOMLDocument, aot, array, document, table
 from tomlkit.exceptions import NonExistentKey
 from tomlkit.items import AoT, Array, Table
-from typed_settings import EnvLoader, click_options, option, settings
+from typed_settings import EnvLoader, click_options, load_settings, option, settings
 from utilities.atomicwrites import writer
 from utilities.click import CONTEXT_SETTINGS
 from utilities.functions import ensure_class
 from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.logging import basic_config
 from utilities.pathlib import get_repo_root
+from utilities.subprocess import run
 from utilities.tempfile import TemporaryFile
 from utilities.version import ParseVersionError, Version, parse_version
 from utilities.whenever import HOUR, get_now
@@ -143,7 +145,7 @@ class Settings:
         return None
 
 
-_SETTINGS = Settings()
+_SETTINGS = load_settings(Settings, [EnvLoader("")])
 
 
 @command(**CONTEXT_SETTINGS)
@@ -160,6 +162,7 @@ def main(settings: Settings, /) -> None:
     _check_versions()
     _run_bump_my_version()
     _run_pre_commit_update()
+    _run_ripgrep_and_sd(version=settings.python_version)
     _update_action_file_extensions()
     _update_action_versions()
     _add_pre_commit(
@@ -804,12 +807,12 @@ def _get_version_from_bump_toml(*, obj: TOMLDocument | str | None = None) -> Ver
 
 
 def _get_version_from_git_show() -> Version:
-    text = check_output(["git", "show", "origin/master:.bumpversion.toml"], text=True)
+    text = run("git", "show", "origin/master:.bumpversion.toml", return_=True)
     return _get_version_from_bump_toml(obj=text.rstrip("\n"))
 
 
 def _get_version_from_git_tag() -> Version:
-    text = check_output(["git", "tag", "--points-at", "origin/master"], text=True)
+    text = run("git", "tag", "--points-at", "origin/master", return_=True)
     for line in text.splitlines():
         with suppress(ParseVersionError):
             return parse_version(line)
@@ -842,8 +845,8 @@ def _run_bump_my_version() -> None:
 def _run_pre_commit_update() -> None:
     path = xdg_cache_home() / "pre-commit-hook-nitpick" / get_repo_root().name
 
-    def run() -> None:
-        _ = check_call(["pre-commit", "autoupdate"])
+    def run_autoupdate() -> None:
+        run("pre-commit", "autoupdate")
         with writer(path, overwrite=True) as temp:
             _ = temp.write_text(get_now().format_iso())
         _ = _MODIFIED.set(True)
@@ -851,21 +854,27 @@ def _run_pre_commit_update() -> None:
     try:
         text = path.read_text()
     except FileNotFoundError:
-        run()
+        run_autoupdate()
     else:
         prev = ZonedDateTime.parse_iso(text.rstrip("\n"))
         if prev < (get_now() - 12 * HOUR):
-            run()
+            run_autoupdate()
+
+
+def _run_ripgrep_and_sd(*, version: str = _SETTINGS.python_version) -> None:
+    pattern = rf'# requires-python = ">=(?!{version})\d+\.\d+"'
+    files = run("rg", "--files-with-matches", pattern, return_=True).splitlines()
+    paths = list(map(Path, files))
+    for path in paths:
+        with _yield_text_file(path) as temp:
+            _ = copyfile(path, temp)
+            run("sd", pattern, rf'# requires-python = ">={version}"', str(temp))
 
 
 def _set_version(version: Version, /) -> None:
-    _ = check_call([
-        "bump-my-version",
-        "replace",
-        "--new-version",
-        str(version),
-        ".bumpversion.toml",
-    ])
+    run(
+        "bump-my-version", "replace", "--new-version", str(version), ".bumpversion.toml"
+    )
 
 
 def _update_action_file_extensions() -> None:
