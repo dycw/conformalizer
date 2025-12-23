@@ -22,6 +22,7 @@ from itertools import product
 from logging import getLogger
 from pathlib import Path
 from re import MULTILINE, escape, search, sub
+from shlex import quote
 from shutil import copyfile
 from string import Template
 from subprocess import CalledProcessError
@@ -862,15 +863,28 @@ def _run_pre_commit_update() -> None:
 
 
 def _run_ripgrep_and_sd(*, version: str = _SETTINGS.python_version) -> None:
-    pattern = rf'# requires-python = ">=(?!{version})\d+\.\d+"'
-    files = run(
-        "rg", "--files-with-matches", "--pcre2", (pattern), return_=True
-    ).splitlines()
+    try:
+        files = run(
+            "rg",
+            "--files-with-matches",
+            "--pcre2",
+            quote(rf'# requires-python = ">=(?!{version})\d+\.\d+"'),
+            return_=True,
+        ).splitlines()
+    except CalledProcessError as error:
+        if error.returncode == 1:
+            return
+        raise
     paths = list(map(Path, files))
     for path in paths:
         with _yield_text_file(path) as temp:
             _ = copyfile(path, temp)
-            run("sd", pattern, rf'# requires-python = ">={version}"', str(temp))
+            run(
+                "sd",
+                r'# requires-python = ">=\d+\.\d+"',
+                rf'# requires-python = ">={version}"',
+                str(temp),
+            )
 
 
 def _set_version(version: Version, /) -> None:
