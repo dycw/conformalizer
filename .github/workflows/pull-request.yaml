@@ -26,4 +26,4 @@ name: pull-request
     branches:
       - master
   schedule:
-    - "cron: 0 0 * * *"
+    - cron: 0 0 * * *
