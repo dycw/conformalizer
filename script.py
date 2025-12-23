@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.14"
+# requires-python = ">=3.13"
 # dependencies = [
 #   "click >= 8.3.1, < 8.4",
 #   "dycw-utilities >= 0.172.3, < 0.173",
@@ -22,7 +22,6 @@ from itertools import product
 from logging import getLogger
 from pathlib import Path
 from re import MULTILINE, escape, search, sub
-from shlex import quote
 from shutil import copyfile
 from string import Template
 from subprocess import CalledProcessError
@@ -868,7 +867,7 @@ def _run_ripgrep_and_sd(*, version: str = _SETTINGS.python_version) -> None:
             "rg",
             "--files-with-matches",
             "--pcre2",
-            quote(rf'# requires-python = ">=(?!{version})\d+\.\d+"'),
+            rf'# requires-python = ">=(?!{version})\d+\.\d+"',
             return_=True,
         ).splitlines()
     except CalledProcessError as error:
