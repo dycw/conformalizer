@@ -38,6 +38,7 @@ repos:
           - --pyright--include=script.py
           - --pytest
           - --pytest--test-paths=tests
+          - --python-version=3.13
           - --readme
           - --repo-name=pre-commit-hook-nitpick
           - --ruff
