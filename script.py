@@ -136,9 +136,6 @@ class Settings:
         factory=list, help="Set up 'pyproject.toml' [[uv.tool.index]]"
     )
     pyright: bool = option(default=False, help="Set up 'pyrightconfig.json'")
-    pyright__include: list[str] = option(
-        factory=list, help="Set up 'pyrightconfig.json' [include]"
-    )
     pytest: bool = option(default=False, help="Set up 'pytest.toml'")
     pytest__asyncio: bool = option(default=False, help="Set up 'pytest.toml' asyncio_*")
     pytest__ignore_warnings: bool = option(
@@ -157,6 +154,9 @@ class Settings:
     readme: bool = option(default=False, help="Set up 'README.md'")
     repo_name: str | None = option(default=None, help="Repo name")
     ruff: bool = option(default=False, help="Set up 'ruff.toml'")
+    script: str | None = option(
+        default=None, help="Set up a script instead of a package"
+    )
     dry_run: bool = option(default=False, help="Dry run the CLI")
 
     @property
@@ -195,7 +195,7 @@ def main(settings: Settings, /) -> None:
         shell=settings.pre_commit__shell,
         taplo=settings.pre_commit__taplo,
         uv=settings.pre_commit__uv,
-        uv__script=settings.pre_commit__uv__script,
+        script=settings.script,
     )
     if settings.coverage:
         _add_coveragerc_toml()
@@ -217,6 +217,7 @@ def main(settings: Settings, /) -> None:
             pytest__resolution__highest=settings.github__pull_request__pytest__resolution__highest,
             pytest__resolution__lowest_direct=settings.github__pull_request__pytest__resolution__lowest_direct,
             pytest__timeout=settings.pytest__timeout,
+            script=settings.script,
         )
     if (
         settings.github__push__publish
@@ -250,9 +251,7 @@ def main(settings: Settings, /) -> None:
             tool__uv__indexes=settings.pyproject__tool__uv__indexes,
         )
     if settings.pyright:
-        _add_pyrightconfig_json(
-            version=settings.python_version, include=settings.pyright__include
-        )
+        _add_pyrightconfig_json(version=settings.python_version, script=settings.script)
     if (
         settings.pytest
         or settings.pytest__asyncio
@@ -327,6 +326,7 @@ def _add_github_pull_request_yaml(
     pytest__resolution__highest: bool = _SETTINGS.github__pull_request__pytest__resolution__highest,
     pytest__resolution__lowest_direct: bool = _SETTINGS.github__pull_request__pytest__resolution__lowest_direct,
     pytest__timeout: int | None = _SETTINGS.pytest__timeout,
+    script: str | None = _SETTINGS.script,
 ) -> None:
     with _yield_yaml_dict(".github/workflows/pull-request.yaml") as dict_:
         dict_["name"] = "pull-request"
@@ -361,6 +361,7 @@ def _add_github_pull_request_yaml(
                         "python-version": "${{ matrix.python-version }}",
                         "resolution": "${{ matrix.resolution }}",
                     }
+                    | ({} if script is None else {"with-requirements": script})
                 },
             )
             strategy_dict = _get_dict(pytest_dict, "strategy")
@@ -450,7 +451,7 @@ def _add_pre_commit(
     shell: bool = _SETTINGS.pre_commit__shell,
     taplo: bool = _SETTINGS.pre_commit__taplo,
     uv: bool = _SETTINGS.pre_commit__uv,
-    uv__script: str | None = _SETTINGS.pre_commit__uv__script,
+    script: str | None = _SETTINGS.script,
 ) -> None:
     with _yield_yaml_dict(".pre-commit-config.yaml") as dict_:
         _ensure_pre_commit_repo(
@@ -519,15 +520,15 @@ def _add_pre_commit(
                     ],
                 ),
             )
-        if uv or (uv__script is not None):
+        if uv:
             _ensure_pre_commit_repo(
                 dict_,
                 "https://github.com/astral-sh/uv-pre-commit",
                 "uv-lock",
-                files=None if uv__script is None else rf"^{escape(uv__script)}$",
+                files=None if script is None else rf"^{escape(script)}$",
                 args=(
                     "add",
-                    ["--upgrade"] if uv__script is None else [f"--script={uv__script}"],
+                    ["--upgrade"] + ([] if script is None else ["--script", script]),
                 ),
             )
 
@@ -583,13 +584,12 @@ def _add_pyproject_toml(
 
 
 def _add_pyrightconfig_json(
-    *,
-    version: str = _SETTINGS.python_version,
-    include: list[str] = _SETTINGS.pyright__include,
+    *, version: str = _SETTINGS.python_version, script: str | None = _SETTINGS.script
 ) -> None:
     with _yield_json_dict("pyrightconfig.json") as dict_:
         dict_["deprecateTypingAliases"] = True
         dict_["enableReachabilityAnalysis"] = False
+        dict_["include"] = "src" if script is None else script
         dict_["pythonVersion"] = version
         dict_["reportCallInDefaultInitializer"] = True
         dict_["reportImplicitOverride"] = True
@@ -612,9 +612,6 @@ def _add_pyrightconfig_json(
         dict_["reportUnusedImport"] = False
         dict_["reportUnusedVariable"] = False
         dict_["typeCheckingMode"] = "strict"
-        if len(include) >= 1:
-            include_list = _get_list(dict_, "include")
-            _ensure_contains(include_list, *include)
 
 
 def _add_pytest_toml(
