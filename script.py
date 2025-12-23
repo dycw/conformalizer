@@ -524,7 +524,7 @@ def _add_pre_commit(
                 files=None if script is None else rf"^{escape(script)}$",
                 args=(
                     "add",
-                    ["--upgrade"] + ([] if script is None else ["--script", script]),
+                    ["--upgrade"] + ([] if script is None else [f"--script={script}"]),
                 ),
             )
 
