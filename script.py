@@ -124,9 +124,6 @@ class Settings:
     pre_commit__uv: bool = option(
         default=False, help="Set up '.pre-commit-config.yaml' uv"
     )
-    pre_commit__uv__script: str | None = option(
-        default=None, help="Set up '.pre-commit-config.yaml' uv lock script"
-    )
     pyproject: bool = option(default=False, help="Set up 'pyproject.toml'")
     pyproject__project__optional_dependencies__scripts: bool = option(
         default=False,
@@ -198,7 +195,7 @@ def main(settings: Settings, /) -> None:
         shell=settings.pre_commit__shell,
         taplo=settings.pre_commit__taplo,
         uv=settings.pre_commit__uv,
-        uv__script=settings.script,
+        script=settings.script,
     )
     if settings.coverage:
         _add_coveragerc_toml()
@@ -453,7 +450,7 @@ def _add_pre_commit(
     shell: bool = _SETTINGS.pre_commit__shell,
     taplo: bool = _SETTINGS.pre_commit__taplo,
     uv: bool = _SETTINGS.pre_commit__uv,
-    uv__script: str | None = _SETTINGS.pre_commit__uv__script,
+    script: str | None = _SETTINGS.script,
 ) -> None:
     with _yield_yaml_dict(".pre-commit-config.yaml") as dict_:
         _ensure_pre_commit_repo(
@@ -522,15 +519,15 @@ def _add_pre_commit(
                     ],
                 ),
             )
-        if uv or (uv__script is not None):
+        if uv:
             _ensure_pre_commit_repo(
                 dict_,
                 "https://github.com/astral-sh/uv-pre-commit",
                 "uv-lock",
-                files=None if uv__script is None else rf"^{escape(uv__script)}$",
+                files=None if script is None else rf"^{escape(script)}$",
                 args=(
                     "add",
-                    ["--upgrade"] if uv__script is None else [f"--script={uv__script}"],
+                    ["--upgrade"] + ([] if script is None else ["--script", script]),
                 ),
             )
 
