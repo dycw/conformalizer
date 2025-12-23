@@ -1,4 +1,13 @@
 jobs:
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run 'pyright'
+        uses: dycw/action-pyright@latest
+        with:
+          python-version: "3.13"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          with-requirements: script.py
   pytest:
     name:
       pytest (${{ matrix.os }}, ${{ matrix.python-version }}, ${{ matrix.resolution
