@@ -29,7 +29,7 @@ repos:
       - args:
           - --description=Pre-commit hook to nitpick your project
           - --github--pull-request--pytest--os--ubuntu
-          - --github--pull-request--pytest--python-version--3-14
+          - --github--pull-request--pytest--python-version--3-13
           - --github--pull-request--pytest--resolution--highest
           - --github--push--tag
           - --pre-commit--prettier
