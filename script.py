@@ -73,7 +73,7 @@ class Settings:
     coverage: bool = option(default=False, help="Set up '.coveragerc.toml'")
     description: str | None = option(default=None, help="Repo description")
     github__pull_request__pre_commit: bool = option(
-        default=True, help="Set up 'pull-request.yaml' pre-commit"
+        default=False, help="Set up 'pull-request.yaml' pre-commit"
     )
     github__pull_request__pyright: bool = option(
         default=False, help="Set up 'pull-request.yaml' pyright"
