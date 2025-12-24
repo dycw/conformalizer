@@ -61,11 +61,11 @@ if TYPE_CHECKING:
 type HasAppend = Array | list[Any]
 type HasSetDefault = Container | StrDict | Table
 type StrDict = dict[str, Any]
-__version__ = "0.6.22"
+__version__ = "0.7.0"
 LOADER = EnvLoader("")
 LOGGER = getLogger(__name__)
 MODIFICATIONS: set[str] = set()
-YAML_INSTANCE = YAML(typ="safe")
+YAML_INSTANCE = YAML()
 
 
 @settings
