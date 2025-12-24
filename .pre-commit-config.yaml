@@ -30,7 +30,7 @@ repos:
           - --description=Pre-commit hook to nitpick your project
           - --github--pull-request--pyright
           - --github--pull-request--pytest--os--ubuntu
-          - --github--pull-request--pytest--python-version--3-13
+          - --github--pull-request--pytest--python-version--default
           - --github--pull-request--pytest--resolution--highest
           - --github--pull-request--ruff
           - --github--push--tag
@@ -47,7 +47,7 @@ repos:
           - --script=script.py
         id: nitpick
     repo: https://github.com/dycw/pre-commit-hook-nitpick
-    rev: 0.6.10
+    rev: 0.6.11
   - hooks:
       - id: replace-sequence-str
     repo: https://github.com/dycw/pre-commit-hooks
