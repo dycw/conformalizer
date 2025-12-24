@@ -4,8 +4,8 @@
 # dependencies = [
 #   "click >= 8.3.1, < 8.4",
 #   "dycw-utilities >= 0.172.7, < 0.173",
-#   "pyyaml >= 6.0.3, < 6.1",
 #   "rich >= 14.2.0, < 14.3",
+#   "ruamel-yaml >=0.18.17, <0.19",
 #   "tomlkit >= 0.13.3, < 0.14",
 #   "typed-settings[attrs, click] >= 25.3.0, < 25.4",
 #   "xdg-base-dirs >= 6.0.2, < 6.1",
@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import sys
 from contextlib import contextmanager, suppress
+from io import StringIO
 from itertools import product
 from logging import getLogger
 from pathlib import Path
@@ -27,9 +28,10 @@ from subprocess import CalledProcessError
 from typing import TYPE_CHECKING, Any, Literal, assert_never
 
 import tomlkit
-import yaml
 from click import command
 from rich.pretty import pretty_repr
+from ruamel.yaml import YAML
+from ruamel.yaml.scalarstring import LiteralScalarString
 from tomlkit import TOMLDocument, aot, array, document, table
 from tomlkit.exceptions import NonExistentKey
 from tomlkit.items import AoT, Array, Table
@@ -48,7 +50,6 @@ from utilities.version import ParseVersionError, Version, parse_version
 from utilities.whenever import HOUR, get_now
 from whenever import ZonedDateTime
 from xdg_base_dirs import xdg_cache_home
-from yaml import Dumper, ScalarNode, add_representer
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
@@ -64,17 +65,7 @@ __version__ = "0.6.22"
 LOADER = EnvLoader("")
 LOGGER = getLogger(__name__)
 MODIFICATIONS: set[str] = set()
-
-
-class LiteralStr(str):
-    __slots__ = ()
-
-
-def literal_str_representer(dumper: Dumper, data: Any, /) -> ScalarNode:
-    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
-
-
-add_representer(LiteralStr, literal_str_representer)
+YAML_INSTANCE = YAML(typ="safe")
 
 
 @settings
@@ -82,7 +73,7 @@ class Settings:
     coverage: bool = option(default=False, help="Set up '.coveragerc.toml'")
     description: str | None = option(default=None, help="Repo description")
     github__pull_request__pre_commit: bool = option(
-        default=False, help="Set up 'pull-request.yaml' pre-commit"
+        default=True, help="Set up 'pull-request.yaml' pre-commit"
     )
     github__pull_request__pyright: bool = option(
         default=False, help="Set up 'pull-request.yaml' pyright"
@@ -396,7 +387,7 @@ def _add_github_pull_request_yaml(
                 extra={
                     "with": {
                         "token": "${{ secrets.GITHUB_TOKEN }}",
-                        "repos": LiteralStr(
+                        "repos": LiteralScalarString(
                             strip_and_dedent("""
                                 dycw/pre-commit-hook-nitpick
                                 pre-commit/pre-commit-hooks
@@ -1138,7 +1129,7 @@ def _update_action_versions() -> None:
         )
         with _yield_yaml_dict(path) as dict_:
             dict_.clear()
-            dict_.update(yaml.safe_load(text))
+            dict_.update(YAML_INSTANCE.load(text))
 
 
 def _write_path_and_modified(verb: str, src: PathLike, dest: PathLike, /) -> None:
@@ -1148,6 +1139,12 @@ def _write_path_and_modified(verb: str, src: PathLike, dest: PathLike, /) -> Non
     with writer(dest, overwrite=True) as temp:
         _ = temp.write_text(text)
     MODIFICATIONS.add(str(dest))
+
+
+def _yaml_dump(obj: Any, /) -> str:
+    stream = StringIO()
+    YAML_INSTANCE.dump(obj, stream)
+    return stream.getvalue()
 
 
 @contextmanager
@@ -1195,7 +1192,7 @@ def _yield_write_context[T](
 
 @contextmanager
 def _yield_yaml_dict(path: PathLike, /) -> Iterator[StrDict]:
-    with _yield_write_context(path, yaml.safe_load, dict, yaml.safe_dump) as dict_:
+    with _yield_write_context(path, YAML_INSTANCE.load, dict, _yaml_dump) as dict_:
         yield dict_
 
 
