@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 type HasAppend = Array | list[Any]
 type HasSetDefault = Container | StrDict | Table
 type StrDict = dict[str, Any]
-__version__ = "0.7.9"
+__version__ = "0.7.10"
 _BUMPVERSION_TOML = Path(".bumpversion.toml")
 _COVERAGERC_TOML = Path(".coveragerc.toml")
 _LOADER = EnvLoader("")
@@ -172,8 +172,7 @@ class Settings:
     python_package_name: str | None = option(
         default=None, help="Python package name override"
     )
-    # python_version: str = option(default="3.14", help="Python version")
-    python_version: str = option(default="3.12", help="Python version")
+    python_version: str = option(default="3.14", help="Python version")
     readme: bool = option(default=False, help="Set up 'README.md'")
     repo_name: str | None = option(default=None, help="Repo name")
     ruff: bool = option(default=True, help="Set up 'ruff.toml'")
@@ -789,6 +788,7 @@ def _add_readme_md(
 
 def _add_ruff_toml(*, version: str = _SETTINGS.python_version) -> None:
     with _yield_toml_doc("ruff.toml") as doc:
+        doc.copy()
         doc["target-version"] = f"py{version.replace('.', '')}"
         doc["unsafe-fixes"] = True
         fmt = _get_table(doc, "format")
@@ -1047,10 +1047,10 @@ def _run_bump_my_version() -> None:
 
     try:
         prev = _get_version_from_git_tag()
-    except (CalledProcessError, ValueError):
+    except CalledProcessError, ValueError:
         try:
             prev = _get_version_from_git_show()
-        except (CalledProcessError, ParseVersionError, NonExistentKey):
+        except CalledProcessError, ParseVersionError, NonExistentKey:
             run_set_version(Version(0, 1, 0))
             return
     current = _get_version_from_bump_toml()
@@ -1195,14 +1195,16 @@ def _yield_write_context[T](
             _write_path_and_modified(verb, temp, path)
 
     try:
-        data = loads(path.read_text())
+        current = path.read_text()
     except FileNotFoundError:
         yield (default := get_default())
         run_write("Writing", default)
     else:
+        data = loads(path.read_text())
         yield data
         current = loads(path.read_text())
-        if data != current:
+        is_equal = current == data  # do not use !=
+        if not is_equal:
             run_write("Modifying", data)
 
 
