@@ -1083,7 +1083,6 @@ def _run_ripgrep_and_sd(*, version: str = _SETTINGS.python_version) -> None:
         files = run(
             "rg",
             "--files-with-matches",
-            "--glob=!.venv/**",
             "--pcre2",
             "--type=py",
             rf'# requires-python = ">=(?!{version})\d+\.\d+"',
