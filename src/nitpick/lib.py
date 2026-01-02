@@ -29,20 +29,27 @@ from whenever import ZonedDateTime
 from xdg_base_dirs import xdg_cache_home
 
 from nitpick.constants import (
+    BUMPVERSION_TOML,
     COVERAGERC_TOML,
     GITHUB_PULL_REQUEST_YAML,
     GITHUB_PUSH_YAML,
     PRE_COMMIT_CONFIG_YAML,
     PYPROJECT_TOML,
+    PYRIGHTCONFIG_JSON,
+    PYTEST_TOML,
+    README_MD,
+    RUFF_TOML,
     YAML_INSTANCE,
 )
 from nitpick.logging import LOGGER
 from nitpick.settings import SETTINGS
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator
+    from collections.abc import Callable, Iterable, Iterator, MutableSet
 
     from utilities.types import PathLike
+
+    from nitpick.types import HasAppend, HasSetDefault, StrDict
 
 
 def add_bumpversion_toml(
@@ -236,6 +243,9 @@ def add_github_pull_request_yaml(
             )
 
 
+##
+
+
 def add_github_push_yaml(
     *,
     publish: bool = SETTINGS.github__push__publish,
@@ -305,34 +315,36 @@ def add_pre_commit_config_yaml(
     script: str | None = SETTINGS.script,
 ) -> None:
     with yield_yaml_dict(PRE_COMMIT_CONFIG_YAML) as dict_:
-        _ensure_pre_commit_repo(
+        _add_pre_commit_config_repo(
             dict_, "https://github.com/dycw/pre-commit-hook-nitpick", "nitpick"
         )
         pre_com_url = "https://github.com/pre-commit/pre-commit-hooks"
-        _ensure_pre_commit_repo(dict_, pre_com_url, "check-executables-have-shebangs")
-        _ensure_pre_commit_repo(dict_, pre_com_url, "check-merge-conflict")
-        _ensure_pre_commit_repo(dict_, pre_com_url, "check-symlinks")
-        _ensure_pre_commit_repo(dict_, pre_com_url, "destroyed-symlinks")
-        _ensure_pre_commit_repo(dict_, pre_com_url, "detect-private-key")
-        _ensure_pre_commit_repo(dict_, pre_com_url, "end-of-file-fixer")
-        _ensure_pre_commit_repo(
+        _add_pre_commit_config_repo(
+            dict_, pre_com_url, "check-executables-have-shebangs"
+        )
+        _add_pre_commit_config_repo(dict_, pre_com_url, "check-merge-conflict")
+        _add_pre_commit_config_repo(dict_, pre_com_url, "check-symlinks")
+        _add_pre_commit_config_repo(dict_, pre_com_url, "destroyed-symlinks")
+        _add_pre_commit_config_repo(dict_, pre_com_url, "detect-private-key")
+        _add_pre_commit_config_repo(dict_, pre_com_url, "end-of-file-fixer")
+        _add_pre_commit_config_repo(
             dict_, pre_com_url, "mixed-line-ending", args=("add", ["--fix=lf"])
         )
-        _ensure_pre_commit_repo(dict_, pre_com_url, "no-commit-to-branch")
-        _ensure_pre_commit_repo(
+        _add_pre_commit_config_repo(dict_, pre_com_url, "no-commit-to-branch")
+        _add_pre_commit_config_repo(
             dict_, pre_com_url, "pretty-format-json", args=("add", ["--autofix"])
         )
-        _ensure_pre_commit_repo(dict_, pre_com_url, "no-commit-to-branch")
-        _ensure_pre_commit_repo(dict_, pre_com_url, "trailing-whitespace")
+        _add_pre_commit_config_repo(dict_, pre_com_url, "no-commit-to-branch")
+        _add_pre_commit_config_repo(dict_, pre_com_url, "trailing-whitespace")
         if dockerfmt:
-            _ensure_pre_commit_repo(
+            _add_pre_commit_config_repo(
                 dict_,
                 "https://github.com/reteps/dockerfmt",
                 "dockerfmt",
                 args=("add", ["--newline", "--write"]),
             )
         if prettier:
-            _ensure_pre_commit_repo(
+            _add_pre_commit_config_repo(
                 dict_,
                 "local",
                 "prettier",
@@ -343,19 +355,19 @@ def add_pre_commit_config_yaml(
             )
         if ruff:
             ruff_url = "https://github.com/astral-sh/ruff-pre-commit"
-            _ensure_pre_commit_repo(
+            _add_pre_commit_config_repo(
                 dict_, ruff_url, "ruff-check", args=("add", ["--fix"])
             )
-            _ensure_pre_commit_repo(dict_, ruff_url, "ruff-format")
+            _add_pre_commit_config_repo(dict_, ruff_url, "ruff-format")
         if shell:
-            _ensure_pre_commit_repo(
+            _add_pre_commit_config_repo(
                 dict_, "https://github.com/scop/pre-commit-shfmt", "shfmt"
             )
-            _ensure_pre_commit_repo(
+            _add_pre_commit_config_repo(
                 dict_, "https://github.com/koalaman/shellcheck-precommit", "shellcheck"
             )
         if taplo:
-            _ensure_pre_commit_repo(
+            _add_pre_commit_config_repo(
                 dict_,
                 "https://github.com/compwa/taplo-pre-commit",
                 "taplo-format",
@@ -372,7 +384,7 @@ def add_pre_commit_config_yaml(
                 ),
             )
         if uv:
-            _ensure_pre_commit_repo(
+            _add_pre_commit_config_repo(
                 dict_,
                 "https://github.com/astral-sh/uv-pre-commit",
                 "uv-lock",
@@ -385,7 +397,7 @@ def add_pre_commit_config_yaml(
             )
 
 
-def ensure_pre_commit_repo(
+def _add_pre_commit_config_repo(
     pre_commit_dict: StrDict,
     url: str,
     id_: str,
@@ -396,7 +408,7 @@ def ensure_pre_commit_repo(
     language: str | None = None,
     files: str | None = None,
     types_or: list[str] | None = None,
-    args: tuple[Literal[add, exact], list[str]] | None = None,
+    args: tuple[Literal["add", "exact"], list[str]] | None = None,
 ) -> None:
     repos_list = get_list(pre_commit_dict, "repos")
     repo_dict = ensure_contains_partial(
@@ -478,10 +490,16 @@ def add_pyproject_toml(
                 ensure_aot_contains(indexes, index)
 
 
+##
+
+
 def add_pyrightconfig_json(
-    *, version: str = SETTINGS.python_version, script: str | None = SETTINGS.script
+    *,
+    modifications: MutableSet[Path] | None = None,
+    version: str = SETTINGS.python_version,
+    script: str | None = SETTINGS.script,
 ) -> None:
-    with yield_json_dict("pyrightconfig.json") as dict_:
+    with yield_json_dict(PYRIGHTCONFIG_JSON, modifications=modifications) as dict_:
         dict_["deprecateTypingAliases"] = True
         dict_["enableReachabilityAnalysis"] = False
         dict_["include"] = ["src" if script is None else script]
@@ -509,8 +527,12 @@ def add_pyrightconfig_json(
         dict_["typeCheckingMode"] = "strict"
 
 
+##
+
+
 def add_pytest_toml(
     *,
+    modifications: MutableSet[Path] | None = None,
     asyncio: bool = SETTINGS.pytest__asyncio,
     ignore_warnings: bool = SETTINGS.pytest__ignore_warnings,
     timeout: int | None = SETTINGS.pytest__timeout,
@@ -518,7 +540,7 @@ def add_pytest_toml(
     python_package_name: str | None = SETTINGS.python_package_name_use,
     script: str | None = SETTINGS.script,
 ) -> None:
-    with yield_toml_doc("pytest.toml") as doc:
+    with yield_toml_doc(PYTEST_TOML, modifications=modifications) as doc:
         pytest = get_table(doc, "pytest")
         addopts = get_array(pytest, "addopts")
         ensure_contains(
@@ -560,12 +582,16 @@ def add_pytest_toml(
             pytest["timeout"] = str(timeout)
 
 
+##
+
+
 def add_readme_md(
     *,
+    modifications: MutableSet[Path] | None = None,
     name: str | None = SETTINGS.package_name,
     description: str | None = SETTINGS.description,
 ) -> None:
-    with yield_text_file("README.md") as temp:
+    with yield_text_file(README_MD, modifications=modifications) as temp:
         lines: list[str] = []
         if name is not None:
             lines.append(f"# `{name}`")
@@ -574,8 +600,15 @@ def add_readme_md(
         _ = temp.write_text("\n\n".join(lines))
 
 
-def add_ruff_toml(*, version: str = SETTINGS.python_version) -> None:
-    with yield_toml_doc("ruff.toml") as doc:
+##
+
+
+def add_ruff_toml(
+    *,
+    modifications: MutableSet[Path] | None = None,
+    version: str = SETTINGS.python_version,
+) -> None:
+    with yield_toml_doc(RUFF_TOML, modifications=modifications) as doc:
         doc["target-version"] = f"py{version.replace('.', '')}"
         doc["unsafe-fixes"] = True
         fmt = get_table(doc, "format")
@@ -639,7 +672,7 @@ def add_ruff_toml(*, version: str = SETTINGS.python_version) -> None:
             "SLF001",  # private-member-access
         ]
         ensure_contains(test_py, *test_py_rules)
-        _ensure_not_contains(ignore, *selected_rules, *test_py_rules)
+        ensure_not_contains(ignore, *selected_rules, *test_py_rules)
         bugbear = get_table(lint, "flake8-bugbear")
         extend_immutable_calls = get_array(bugbear, "extend-immutable-calls")
         ensure_contains(extend_immutable_calls, "typing.cast")
@@ -651,13 +684,19 @@ def add_ruff_toml(*, version: str = SETTINGS.python_version) -> None:
         isort["split-on-trailing-comma"] = False
 
 
+##
+
+
 def check_versions() -> None:
-    version = get_version_from_bump_toml()
+    version = get_version_from_bumpversion_toml()
     try:
-        _set_version(version)
+        set_version(version)
     except CalledProcessError:
-        msg = f"Inconsistent versions; got be {version}"
+        msg = f"Inconsistent versions; should be {version}"
         raise ValueError(msg) from None
+
+
+##
 
 
 def ensure_aot_contains(array: AoT, /, *tables: Table) -> None:
@@ -694,6 +733,9 @@ def ensure_not_contains(array: Array, /, *objs: Any) -> None:
             pass
         else:
             del array[index]
+
+
+##
 
 
 def get_aot(container: HasSetDefault, key: str, /) -> AoT:
@@ -746,25 +788,29 @@ def get_table(container: HasSetDefault, key: str, /) -> Table:
     return ensure_class(container.setdefault(key, table()), Table)
 
 
-def get_version_from_bump_toml(*, obj: TOMLDocument | str | None = None) -> Version:
+##
+
+
+def get_version_from_bumpversion_toml(
+    *, obj: TOMLDocument | str | None = None
+) -> Version:
     match obj:
-        case TOMLDocument() as obj:
-            tool = get_table(obj, "tool")
+        case TOMLDocument() as doc:
+            tool = get_table(doc, "tool")
             bumpversion = get_table(tool, "bumpversion")
             return parse_version(str(bumpversion["current_version"]))
-        case str() as obj:
-            return get_version_from_bump_toml(obj=tomlkit.parse(obj))
+        case str() as text:
+            return get_version_from_bumpversion_toml(obj=tomlkit.parse(text))
         case None:
-            with yield_bumpversion_toml() as obj:
-                return get_version_from_bump_toml(obj=obj)
+            with yield_bumpversion_toml() as doc:
+                return get_version_from_bumpversion_toml(obj=doc)
         case never:
             assert_never(never)
-    return None
 
 
 def get_version_from_git_show() -> Version:
     text = run("git", "show", f"origin/master:{BUMPVERSION_TOML}", return_=True)
-    return get_version_from_bump_toml(obj=text.rstrip("\n"))
+    return get_version_from_bumpversion_toml(obj=text.rstrip("\n"))
 
 
 def get_version_from_git_tag() -> Version:
@@ -776,14 +822,18 @@ def get_version_from_git_tag() -> Version:
     raise ValueError(msg)
 
 
-def run_bump_my_version() -> None:
+##
+
+
+def run_bump_my_version(*, modifications: MutableSet[Path] | None = None) -> None:
     if search("template", str(get_repo_root())):
         return
 
     def run_set_version(version: Version, /) -> None:
         LOGGER.info("Setting version to %s...", version)
-        _set_version(version)
-        _MODIFICATIONS.add(BUMPVERSION_TOML)
+        set_version(version)
+        if modifications is not None:
+            modifications.add(BUMPVERSION_TOML)
 
     try:
         prev = get_version_from_git_tag()
@@ -792,13 +842,19 @@ def run_bump_my_version() -> None:
             prev = get_version_from_git_show()
         except (CalledProcessError, ParseVersionError, NonExistentKey):
             run_set_version(Version(0, 1, 0))
-            return
-    current = get_version_from_bump_toml()
-    if current not in {prev.bump_patch(), prev.bump_minor(), prev.bump_major()}:
-        run_set_version(prev.bump_patch())
+    else:
+        current = get_version_from_bumpversion_toml()
+        patched = prev.bump_patch()
+        if current not in {patched, prev.bump_minor(), prev.bump_major()}:
+            run_set_version(patched)
 
 
-def run_pre_commit_update() -> None:
+##
+
+
+def run_pre_commit_update(
+    *, modifications: MutableSet[Path] | None = None
+) -> Path | None:
     cache = xdg_cache_home() / "pre-commit-hook-nitpick" / get_repo_root().name
 
     def run_autoupdate() -> None:
@@ -806,20 +862,29 @@ def run_pre_commit_update() -> None:
         run("pre-commit", "autoupdate", print=True)
         with writer(cache, overwrite=True) as temp:
             _ = temp.write_text(get_now().format_iso())
-        if PRE_COMMIT_CONFIG_YAML.read_text() != current:
-            _MODIFICATIONS.add(PRE_COMMIT_CONFIG_YAML)
+        if (modifications is not None) and (
+            PRE_COMMIT_CONFIG_YAML.read_text() != current
+        ):
+            modifications.add(PRE_COMMIT_CONFIG_YAML)
 
     try:
         text = cache.read_text()
     except FileNotFoundError:
-        run_autoupdate()
+        return run_autoupdate()
     else:
         prev = ZonedDateTime.parse_iso(text.rstrip("\n"))
         if prev < (get_now() - 12 * HOUR):
-            run_autoupdate()
+            return run_autoupdate()
 
 
-def run_ripgrep_and_replace(*, version: str = SETTINGS.python_version) -> None:
+##
+
+
+def run_ripgrep_and_replace(
+    *,
+    version: str = SETTINGS.python_version,
+    modifications: MutableSet[Path] | None = None,
+) -> None:
     result = ripgrep(
         "--files-with-matches",
         "--pcre2",
@@ -829,7 +894,7 @@ def run_ripgrep_and_replace(*, version: str = SETTINGS.python_version) -> None:
     if result is None:
         return
     for path in map(Path, result.splitlines()):
-        with yield_text_file(path) as temp:
+        with yield_text_file(path, modifications=modifications) as temp:
             text = sub(
                 r'# requires-python = ">=\d+\.\d+"',
                 rf'# requires-python = ">={version}"',
@@ -837,6 +902,9 @@ def run_ripgrep_and_replace(*, version: str = SETTINGS.python_version) -> None:
                 flags=MULTILINE,
             )
             _ = temp.write_text(text)
+
+
+##
 
 
 def set_version(version: Version, /) -> None:
@@ -849,7 +917,12 @@ def set_version(version: Version, /) -> None:
     )
 
 
-def update_action_file_extensions() -> None:
+##
+
+
+def update_action_file_extensions(
+    *, modifications: MutableSet[Path] | None = None
+) -> None:
     try:
         paths = list(Path(".github").rglob("**/*.yml"))
     except FileNotFoundError:
@@ -858,6 +931,8 @@ def update_action_file_extensions() -> None:
         new = path.with_suffix(".yaml")
         LOGGER.info("Renaming '%s' -> '%s'...", path, new)
         _ = path.rename(new)
+        if modifications is not None:
+            modifications.add(path)
 
 
 def update_action_versions() -> None:
@@ -883,13 +958,27 @@ def update_action_versions() -> None:
             dict_.update(YAML_INSTANCE.load(text))
 
 
-def write_path_and_modified(verb: str, src: PathLike, dest: PathLike, /) -> None:
+##
+
+
+def write_text(
+    verb: str,
+    src: PathLike,
+    dest: PathLike,
+    /,
+    *,
+    modifications: MutableSet[Path] | None = None,
+) -> None:
     src, dest = map(Path, [src, dest])
     LOGGER.info("%s '%s'...", verb, dest)
     text = src.read_text().rstrip("\n") + "\n"
     with writer(dest, overwrite=True) as temp:
         _ = temp.write_text(text)
-    _MODIFICATIONS.add(dest)
+    if modifications is not None:
+        modifications.add(dest)
+
+
+##
 
 
 def yaml_dump(obj: Any, /) -> str:
@@ -898,9 +987,14 @@ def yaml_dump(obj: Any, /) -> str:
     return stream.getvalue()
 
 
+##
+
+
 @contextmanager
-def yield_bumpversion_toml() -> Iterator[TOMLDocument]:
-    with yield_toml_doc(".bumpversion.toml") as doc:
+def yield_bumpversion_toml(
+    *, modifications: MutableSet[Path] | None = None
+) -> Iterator[TOMLDocument]:
+    with yield_toml_doc(BUMPVERSION_TOML, modifications=modifications) as doc:
         tool = get_table(doc, "tool")
         bumpversion = get_table(tool, "bumpversion")
         bumpversion["allow_dirty"] = True
@@ -908,10 +1002,54 @@ def yield_bumpversion_toml() -> Iterator[TOMLDocument]:
         yield doc
 
 
+##
+
+
 @contextmanager
-def yield_json_dict(path: PathLike, /) -> Iterator[StrDict]:
-    with yield_write_context(path, json.loads, dict, json.dumps) as dict_:
+def yield_json_dict(
+    path: PathLike, /, *, modifications: MutableSet[Path] | None = None
+) -> Iterator[StrDict]:
+    with yield_write_context(
+        path, json.loads, dict, json.dumps, modifications=modifications
+    ) as dict_:
         yield dict_
+
+
+##
+
+
+@contextmanager
+def yield_text_file(
+    path: PathLike, /, *, modifications: MutableSet[Path] | None = None
+) -> Iterator[Path]:
+    path = Path(path)
+    try:
+        current = path.read_text()
+    except FileNotFoundError:
+        with TemporaryFile() as temp:
+            yield temp
+            write_text("Writing", temp, path, modifications=modifications)
+    else:
+        with TemporaryFile() as temp:
+            yield temp
+            if temp.read_text().rstrip("\n") != current.rstrip("\n"):
+                write_text("Writing", temp, path, modifications=modifications)
+
+
+##
+
+
+@contextmanager
+def yield_toml_doc(
+    path: PathLike, /, *, modifications: MutableSet[Path] | None = None
+) -> Iterator[TOMLDocument]:
+    with yield_write_context(
+        path, tomlkit.parse, document, tomlkit.dumps, modifications=modifications
+    ) as doc:
+        yield doc
+
+
+##
 
 
 @contextmanager
@@ -921,13 +1059,15 @@ def yield_write_context[T](
     get_default: Callable[[], T],
     dumps: Callable[[T], str],
     /,
+    *,
+    modifications: MutableSet[Path] | None = None,
 ) -> Iterator[T]:
     path = Path(path)
 
     def run_write(verb: str, data: T, /) -> None:
         with writer(path, overwrite=True) as temp:
             _ = temp.write_text(dumps(data))
-            _write_path_and_modified(verb, temp, path)
+            write_text(verb, temp, path, modifications=modifications)
 
     try:
         current = path.read_text()
@@ -942,33 +1082,53 @@ def yield_write_context[T](
             run_write("Modifying", data)
 
 
+##
+
+
 @contextmanager
-def yield_yaml_dict(path: PathLike, /) -> Iterator[StrDict]:
-    with yield_write_context(path, YAML_INSTANCE.load, dict, _yaml_dump) as dict_:
+def yield_yaml_dict(
+    path: PathLike, /, *, modifications: MutableSet[Path] | None = None
+) -> Iterator[StrDict]:
+    with yield_write_context(
+        path, YAML_INSTANCE.load, dict, yaml_dump, modifications=modifications
+    ) as dict_:
         yield dict_
 
 
-@contextmanager
-def yield_text_file(path: PathLike, /) -> Iterator[Path]:
-    path = Path(path)
-
-    try:
-        current = path.read_text()
-    except FileNotFoundError:
-        with TemporaryFile() as temp:
-            yield temp
-            _write_path_and_modified("Writing", temp, path)
-    else:
-        with TemporaryFile() as temp:
-            yield temp
-            if temp.read_text().rstrip("\n") != current.rstrip("\n"):
-                _write_path_and_modified("Writing", temp, path)
-
-
-@contextmanager
-def yield_toml_doc(path: PathLike, /) -> Iterator[TOMLDocument]:
-    with yield_write_context(path, tomlkit.parse, document, tomlkit.dumps) as doc:
-        yield doc
-
-
-__all__ = ["add_bumpversion_toml", "yield_toml_doc", "yield_write_context"]
+__all__ = [
+    "add_bumpversion_toml",
+    "add_coveragerc_toml",
+    "add_github_pull_request_yaml",
+    "add_github_push_yaml",
+    "add_pre_commit_config_yaml",
+    "add_pyproject_toml",
+    "add_pyrightconfig_json",
+    "add_pytest_toml",
+    "add_readme_md",
+    "add_ruff_toml",
+    "check_versions",
+    "ensure_aot_contains",
+    "ensure_contains",
+    "ensure_contains_partial",
+    "ensure_not_contains",
+    "get_aot",
+    "get_array",
+    "get_dict",
+    "get_list",
+    "get_partial_dict",
+    "get_table",
+    "get_version_from_bumpversion_toml",
+    "get_version_from_git_show",
+    "get_version_from_git_tag",
+    "run_bump_my_version",
+    "run_pre_commit_update",
+    "run_ripgrep_and_replace",
+    "set_version",
+    "update_action_file_extensions",
+    "yield_bumpversion_toml",
+    "yield_json_dict",
+    "yield_text_file",
+    "yield_toml_doc",
+    "yield_write_context",
+    "yield_yaml_dict",
+]
