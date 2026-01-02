@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager, suppress
 from io import StringIO
-from itertools import product
+from itertools import product, repeat
 from pathlib import Path
-from re import MULTILINE, escape, sub
+from re import MULTILINE, escape, search, sub
+from shlex import join
 from string import Template
 from subprocess import CalledProcessError
 from typing import TYPE_CHECKING, Any, Literal, assert_never
@@ -20,7 +21,7 @@ from utilities.atomicwrites import writer
 from utilities.functions import ensure_class
 from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.pathlib import get_repo_root
-from utilities.subprocess import append_text, ripgrep, run
+from utilities.subprocess import cat, ripgrep, run, tee
 from utilities.tempfile import TemporaryFile
 from utilities.text import strip_and_dedent
 from utilities.version import ParseVersionError, Version, parse_version
@@ -110,16 +111,78 @@ def add_coveragerc_toml(*, modifications: MutableSet[Path] | None = None) -> Non
 
 
 def add_envrc(
+    *,
     modifications: MutableSet[Path] | None = None,
+    uv: bool = False,
     version: str = SETTINGS.python_version,
     script: str | None = SETTINGS.script,
 ) -> None:
     with yield_text_file(ENVRC, modifications=modifications) as temp:
-        text = strip_and_dedent("""
+        shebang = strip_and_dedent("""
             #!/usr/bin/env sh
             # shellcheck source=/dev/null
         """)
-        append_text(temp, text, skip_if_present=True, blank_lines=2)
+        append_text_temp(
+            temp, shebang, skip_if_present=True, flags=MULTILINE, blank_lines=2
+        )
+
+        echo = strip_and_dedent("""
+            # echo
+            echo_date() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >&2; }
+        """)
+        append_text_temp(
+            temp, echo, skip_if_present=True, flags=MULTILINE, blank_lines=2
+        )
+
+        if uv:
+            uv_sync_args: list[str] = ["uv", "sync"]
+            if script is None:
+                uv_sync_args.extend(["--all-extras", "--all-groups"])
+            uv_sync_args.extend(["--active", "--locked"])
+            if script is not None:
+                uv_sync_args.extend(["--script", script])
+            uv_sync = join(uv_sync_args)
+            uv_text = strip_and_dedent(f"""
+                # uv
+                export UV_MANAGED_PYTHON='true'
+                export UV_PRERELEASE='disallow'
+                export UV_PYTHON='{version}'
+                if ! command -v uv >/dev/null 2>&1; then
+                    echo_date "ERROR: 'uv' not found" && exit 1
+                fi
+                activate='.venv/bin/activate'
+                if [ -f $activate ]; then
+                    . $activate
+                else
+                    uv venv
+                fi
+                {uv_sync}
+            """)
+            append_text_temp(
+                temp, uv_text, skip_if_present=True, flags=MULTILINE, blank_lines=2
+            )
+
+
+def append_text_temp(
+    path: PathLike,
+    text: str,
+    /,
+    *,
+    sudo: bool = False,
+    skip_if_present: bool = False,
+    flags: int = 0,
+    blank_lines: int = 1,
+) -> None:
+    """Append text to a file."""
+    try:
+        existing = cat(path, sudo=sudo)
+    except (CalledProcessError, FileNotFoundError):
+        tee(path, text, sudo=sudo, append=True)
+        return
+    if skip_if_present and (search(escape(text), existing, flags=flags) is not None):
+        return
+    full = "".join([*repeat("\n", times=blank_lines), text])
+    tee(path, full, sudo=sudo, append=True)
 
 
 ##
@@ -1052,9 +1115,9 @@ def yield_text_file(
             yield temp
             write_text("Writing", temp, path, modifications=modifications)
     else:
-        with TemporaryFile() as temp:
+        with TemporaryFile(text=current) as temp:
             yield temp
-            if temp.read_text().rstrip("\n") != current.rstrip("\n"):
+            if temp.read_text() != current:
                 write_text("Writing", temp, path, modifications=modifications)
 
 

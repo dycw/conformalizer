@@ -16,6 +16,7 @@ from conformalize import __version__
 from conformalize.lib import (
     add_bumpversion_toml,
     add_coveragerc_toml,
+    add_envrc,
     add_github_pull_request_yaml,
     add_github_push_yaml,
     add_pre_commit_config_yaml,
@@ -77,9 +78,10 @@ def _main(settings: Settings, /) -> None:
     )
     if settings.coverage:
         add_coveragerc_toml(modifications=modifications)
-    if settings.envrc:
+    if settings.envrc or settings.envrc__uv:
         add_envrc(
             modifications=modifications,
+            uv=settings.envrc__uv,
             version=settings.python_version,
             script=settings.script,
         )
