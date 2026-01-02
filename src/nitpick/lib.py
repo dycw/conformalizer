@@ -54,10 +54,11 @@ if TYPE_CHECKING:
 
 def add_bumpversion_toml(
     *,
+    modifications: MutableSet[Path] | None = None,
     pyproject: bool = SETTINGS.pyproject,
     python_package_name_use: str | None = SETTINGS.python_package_name_use,
 ) -> None:
-    with yield_bumpversion_toml() as doc:
+    with yield_bumpversion_toml(modifications=modifications) as doc:
         tool = get_table(doc, "tool")
         bumpversion = get_table(tool, "bumpversion")
         if pyproject:
@@ -88,8 +89,8 @@ def _add_bumpversion_toml_file(path: PathLike, template: str, /) -> Table:
 ##
 
 
-def add_coveragerc_toml() -> None:
-    with yield_toml_doc(COVERAGERC_TOML) as doc:
+def add_coveragerc_toml(*, modifications: MutableSet[Path] | None = None) -> None:
+    with yield_toml_doc(COVERAGERC_TOML, modifications=modifications) as doc:
         html = get_table(doc, "html")
         html["directory"] = ".coverage/html"
         report = get_table(doc, "report")
@@ -109,6 +110,7 @@ def add_coveragerc_toml() -> None:
 
 def add_github_pull_request_yaml(
     *,
+    modifications: MutableSet[Path] | None = None,
     pre_commit: bool = SETTINGS.github__pull_request__pre_commit,
     pyright: bool = SETTINGS.github__pull_request__pyright,
     pytest__os__windows: bool = SETTINGS.github__pull_request__pytest__os__windows,
@@ -125,7 +127,9 @@ def add_github_pull_request_yaml(
     ruff: bool = SETTINGS.github__pull_request__ruff,
     script: str | None = SETTINGS.script,
 ) -> None:
-    with yield_yaml_dict(GITHUB_PULL_REQUEST_YAML) as dict_:
+    with yield_yaml_dict(
+        GITHUB_PULL_REQUEST_YAML, modifications=modifications
+    ) as dict_:
         dict_["name"] = "pull-request"
         on = get_dict(dict_, "on")
         pull_request = get_dict(on, "pull_request")
@@ -248,6 +252,7 @@ def add_github_pull_request_yaml(
 
 def add_github_push_yaml(
     *,
+    modifications: MutableSet[Path] | None = None,
     publish: bool = SETTINGS.github__push__publish,
     publish__trusted_publishing: bool = SETTINGS.github__push__publish__trusted_publishing,
     tag: bool = SETTINGS.github__push__tag,
@@ -255,7 +260,7 @@ def add_github_push_yaml(
     tag__major: bool = SETTINGS.github__push__tag__major,
     tag__latest: bool = SETTINGS.github__push__tag__latest,
 ) -> None:
-    with yield_yaml_dict(GITHUB_PUSH_YAML) as dict_:
+    with yield_yaml_dict(GITHUB_PUSH_YAML, modifications=modifications) as dict_:
         dict_["name"] = "push"
         on = get_dict(dict_, "on")
         push = get_dict(on, "push")
@@ -306,6 +311,7 @@ def add_github_push_yaml(
 
 def add_pre_commit_config_yaml(
     *,
+    modifications: MutableSet[Path] | None = None,
     dockerfmt: bool = SETTINGS.pre_commit__dockerfmt,
     prettier: bool = SETTINGS.pre_commit__prettier,
     ruff: bool = SETTINGS.pre_commit__ruff,
@@ -314,7 +320,7 @@ def add_pre_commit_config_yaml(
     uv: bool = SETTINGS.pre_commit__uv,
     script: str | None = SETTINGS.script,
 ) -> None:
-    with yield_yaml_dict(PRE_COMMIT_CONFIG_YAML) as dict_:
+    with yield_yaml_dict(PRE_COMMIT_CONFIG_YAML, modifications=modifications) as dict_:
         _add_pre_commit_config_repo(
             dict_, "https://github.com/dycw/pre-commit-hook-nitpick", "nitpick"
         )
@@ -442,6 +448,7 @@ def _add_pre_commit_config_repo(
 
 def add_pyproject_toml(
     *,
+    modifications: MutableSet[Path] | None = None,
     version: str = SETTINGS.python_version,
     description: str | None = SETTINGS.description,
     package_name: str | None = SETTINGS.package_name,
@@ -451,7 +458,7 @@ def add_pyproject_toml(
     python_package_name_use: str | None = SETTINGS.python_package_name_use,
     tool__uv__indexes: list[tuple[str, str]] = SETTINGS.pyproject__tool__uv__indexes,
 ) -> None:
-    with yield_toml_doc(PYPROJECT_TOML) as doc:
+    with yield_toml_doc(PYPROJECT_TOML, modifications=modifications) as doc:
         build_system = get_table(doc, "build-system")
         build_system["build-backend"] = "uv_build"
         build_system["requires"] = ["uv_build"]
