@@ -1,0 +1,19 @@
+[build-system]
+  build-backend = "uv_build"
+  requires = ["uv_build"]
+
+[dependency-groups]
+  dev = ["dycw-utilities[test]", "pyright", "rich"]
+
+[project]
+  authors = [{ email = "d.wan@icloud.com", name = "Derek Wan" }]
+  dependencies = []
+  description = "Pre-commit hook to nitpick your project"
+  name = "dycw-pre-commit-hook-nitpick"
+  readme = "README.md"
+  requires-python = ">= 3.12"
+  version = "0.8.4"
+
+[tool.uv.build-backend]
+  module-name = "nitpick"
+  module-root = "src"
