@@ -30,6 +30,8 @@ from xdg_base_dirs import xdg_cache_home
 
 from nitpick.constants import (
     COVERAGERC_TOML,
+    GITHUB_PULL_REQUEST_YAML,
+    GITHUB_PUSH_YAML,
     PRE_COMMIT_CONFIG_YAML,
     PYPROJECT_TOML,
     YAML_INSTANCE,
@@ -95,6 +97,9 @@ def add_coveragerc_toml() -> None:
         run["parallel"] = True
 
 
+##
+
+
 def add_github_pull_request_yaml(
     *,
     pre_commit: bool = SETTINGS.github__pull_request__pre_commit,
@@ -113,7 +118,7 @@ def add_github_pull_request_yaml(
     ruff: bool = SETTINGS.github__pull_request__ruff,
     script: str | None = SETTINGS.script,
 ) -> None:
-    with yield_yaml_dict(".github/workflows/pull-request.yaml") as dict_:
+    with yield_yaml_dict(GITHUB_PULL_REQUEST_YAML) as dict_:
         dict_["name"] = "pull-request"
         on = get_dict(dict_, "on")
         pull_request = get_dict(on, "pull_request")
@@ -240,7 +245,7 @@ def add_github_push_yaml(
     tag__major: bool = SETTINGS.github__push__tag__major,
     tag__latest: bool = SETTINGS.github__push__tag__latest,
 ) -> None:
-    with yield_yaml_dict(".github/workflows/push.yaml") as dict_:
+    with yield_yaml_dict(GITHUB_PUSH_YAML) as dict_:
         dict_["name"] = "push"
         on = get_dict(dict_, "on")
         push = get_dict(on, "push")
