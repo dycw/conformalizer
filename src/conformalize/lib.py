@@ -1091,7 +1091,7 @@ def yield_text_file(
     else:
         with TemporaryFile(text=current) as temp:
             yield temp
-            if temp.read_text() != current:
+            if temp.read_text().rstrip("\n") != current.rstrip("\n"):
                 write_text("Writing", temp, path, modifications=modifications)
 
 
