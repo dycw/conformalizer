@@ -2,6 +2,9 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 
+[options]
+prerelease-mode = "disallow"
+
 [manifest]
 requirements = [
     { name = "click", specifier = ">=8.3.1,<8.4" },
