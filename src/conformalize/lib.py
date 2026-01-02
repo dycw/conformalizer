@@ -20,7 +20,7 @@ from utilities.atomicwrites import writer
 from utilities.functions import ensure_class
 from utilities.iterables import OneEmptyError, OneNonUniqueError, one
 from utilities.pathlib import get_repo_root
-from utilities.subprocess import ripgrep, run
+from utilities.subprocess import append_text, ripgrep, run
 from utilities.tempfile import TemporaryFile
 from utilities.text import strip_and_dedent
 from utilities.version import ParseVersionError, Version, parse_version
@@ -31,6 +31,7 @@ from xdg_base_dirs import xdg_cache_home
 from conformalize.constants import (
     BUMPVERSION_TOML,
     COVERAGERC_TOML,
+    ENVRC,
     GITHUB_PULL_REQUEST_YAML,
     GITHUB_PUSH_YAML,
     PRE_COMMIT_CONFIG_YAML,
@@ -103,6 +104,22 @@ def add_coveragerc_toml(*, modifications: MutableSet[Path] | None = None) -> Non
         run["branch"] = True
         run["data_file"] = ".coverage/data"
         run["parallel"] = True
+
+
+##
+
+
+def add_envrc(
+    modifications: MutableSet[Path] | None = None,
+    version: str = SETTINGS.python_version,
+    script: str | None = SETTINGS.script,
+) -> None:
+    with yield_text_file(ENVRC, modifications=modifications) as temp:
+        text = strip_and_dedent("""
+            #!/usr/bin/env sh
+            # shellcheck source=/dev/null
+        """)
+        append_text(temp, text, skip_if_present=True, blank_lines=2)
 
 
 ##
@@ -1103,6 +1120,7 @@ def yield_yaml_dict(
 __all__ = [
     "add_bumpversion_toml",
     "add_coveragerc_toml",
+    "add_envrc",
     "add_github_pull_request_yaml",
     "add_github_push_yaml",
     "add_pre_commit_config_yaml",
