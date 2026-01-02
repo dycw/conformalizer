@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/dycw/pre-commit-hook-nitpick
-    rev: 0.8.3
+    rev: 0.9.0
     hooks:
       - args:
           - --description=Pre-commit hook to nitpick your project
@@ -11,6 +11,7 @@ repos:
           - --github--pull-request--pytest--python-version--default
           - --github--pull-request--pytest--resolution--highest
           - --github--pull-request--ruff
+          - --github--push--publish
           - --github--push--tag
           - --package-name=dycw-pre-commit-hook-nitpick
           - --pre-commit--prettier
