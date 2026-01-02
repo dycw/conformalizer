@@ -1,7 +1,7 @@
-- id: nitpick
-  name: nitpick
-  entry: nitpick
+- id: conformalize
+  name: conformalize
+  entry: conformalize
   language: python
   always_run: true
   pass_filenames: false
-  description: Nitpick your project
+  description: Project conformalizer

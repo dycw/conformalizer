@@ -11,8 +11,8 @@ from utilities.logging import basic_config
 from utilities.os import is_pytest
 from utilities.text import strip_and_dedent
 
-from nitpick import __version__
-from nitpick.lib import (
+from conformalize import __version__
+from conformalize.lib import (
     add_bumpversion_toml,
     add_coveragerc_toml,
     add_github_pull_request_yaml,
@@ -30,8 +30,8 @@ from nitpick.lib import (
     update_action_file_extensions,
     update_action_versions,
 )
-from nitpick.logging import LOGGER
-from nitpick.settings import LOADER, Settings
+from conformalize.logging import LOGGER
+from conformalize.settings import LOADER, Settings
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,7 +45,7 @@ def _main(settings: Settings, /) -> None:
     basic_config(obj=LOGGER)
     LOGGER.info(
         strip_and_dedent("""
-            Running 'pre-commit-hook-nitpick' (version %s) with settings:
+            Running 'conformalize' (version %s) with settings:
             %s
         """),
         __version__,

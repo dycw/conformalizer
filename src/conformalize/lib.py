@@ -28,7 +28,7 @@ from utilities.whenever import HOUR, get_now
 from whenever import ZonedDateTime
 from xdg_base_dirs import xdg_cache_home
 
-from nitpick.constants import (
+from conformalize.constants import (
     BUMPVERSION_TOML,
     COVERAGERC_TOML,
     GITHUB_PULL_REQUEST_YAML,
@@ -41,15 +41,15 @@ from nitpick.constants import (
     RUFF_TOML,
     YAML_INSTANCE,
 )
-from nitpick.logging import LOGGER
-from nitpick.settings import SETTINGS
+from conformalize.logging import LOGGER
+from conformalize.settings import SETTINGS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, MutableSet
 
     from utilities.types import PathLike
 
-    from nitpick.types import HasAppend, HasSetDefault, StrDict
+    from conformalize.types import HasAppend, HasSetDefault, StrDict
 
 
 def add_bumpversion_toml(
@@ -150,7 +150,7 @@ def add_github_pull_request_yaml(
                         "token": "${{secrets.GITHUB_TOKEN}}",
                         "repos": LiteralScalarString(
                             strip_and_dedent("""
-                                dycw/pre-commit-hook-nitpick
+                                dycw/conformalize
                                 pre-commit/pre-commit-hooks
                             """)
                         ),
@@ -322,7 +322,7 @@ def add_pre_commit_config_yaml(
 ) -> None:
     with yield_yaml_dict(PRE_COMMIT_CONFIG_YAML, modifications=modifications) as dict_:
         _add_pre_commit_config_repo(
-            dict_, "https://github.com/dycw/pre-commit-hook-nitpick", "nitpick"
+            dict_, "https://github.com/dycw/conformalize", "conformalize"
         )
         pre_com_url = "https://github.com/pre-commit/pre-commit-hooks"
         _add_pre_commit_config_repo(
@@ -860,7 +860,7 @@ def run_bump_my_version(*, modifications: MutableSet[Path] | None = None) -> Non
 
 
 def run_pre_commit_update(*, modifications: MutableSet[Path] | None = None) -> None:
-    cache = xdg_cache_home() / "pre-commit-hook-nitpick" / get_repo_root().name
+    cache = xdg_cache_home() / "conformalize" / get_repo_root().name
 
     def run_autoupdate() -> None:
         current = PRE_COMMIT_CONFIG_YAML.read_text()

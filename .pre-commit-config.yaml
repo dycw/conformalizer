@@ -1,9 +1,9 @@
 repos:
-  - repo: https://github.com/dycw/pre-commit-hook-nitpick
-    rev: 0.9.0
+  - repo: https://github.com/dycw/conformalize
+    rev: 0.9.1
     hooks:
       - args:
-          - --description=Pre-commit hook to nitpick your project
+          - --description=Project conformalizer
           - --github--pull-request--pre-commit
           - --github--pull-request--pyright
           - --github--pull-request--pytest--os--macos
@@ -13,7 +13,7 @@ repos:
           - --github--pull-request--ruff
           - --github--push--publish
           - --github--push--tag
-          - --package-name=dycw-pre-commit-hook-nitpick
+          - --package-name=dycw-conformalize
           - --pre-commit--prettier
           - --pre-commit--ruff
           - --pre-commit--taplo
@@ -21,10 +21,10 @@ repos:
           - --pyproject
           - --pyright
           - --pytest
-          - --python-package-name=nitpick
+          - --python-package-name=conformalize
           - --python-version=3.12
           - --readme
-          - --repo-name=pre-commit-hook-nitpick
+          - --repo-name=conformalize
           - --ruff
         id: nitpick
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -81,3 +81,7 @@ repos:
           - highest
           - --prerelease
           - disallow
+  - repo: https://github.com/dycw/pre-commit-hook-nitpick
+    rev: master
+    hooks:
+      - id: nitpick

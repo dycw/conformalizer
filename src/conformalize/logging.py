@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from logging import getLogger
 
-LOGGER = getLogger("nitpick")
+LOGGER = getLogger("conformalize")
 
 
 __all__ = ["LOGGER"]

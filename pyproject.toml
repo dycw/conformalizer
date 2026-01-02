@@ -16,17 +16,17 @@
     "typed-settings[attrs, click] >=25.3.0, <25.4",
     "xdg-base-dirs >=6.0.2, <6.1",
   ]
-  description = "Pre-commit hook to nitpick your project"
-  name = "dycw-pre-commit-hook-nitpick"
+  description = "Project conformalizer"
+  name = "dycw-conformalize"
   readme = "README.md"
   requires-python = ">= 3.12"
-  version = "0.9.1"
+  version = "0.10.0"
 
   [project.scripts]
-    nitpick = "nitpick.cli:_main"
+    conformalize = "conformalize.cli:_main"
 
 [tool]
   [tool.uv]
     [tool.uv.build-backend]
-      module-name = "nitpick"
+      module-name = "conformalize"
       module-root = "src"

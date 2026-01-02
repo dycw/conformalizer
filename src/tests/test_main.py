@@ -6,4 +6,4 @@ from utilities.subprocess import run
 
 class TestCLI:
     def test_main(self) -> None:
-        run("nitpick", cwd=get_repo_root())
+        run("conformalize", cwd=get_repo_root())
