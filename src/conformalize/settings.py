@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typed_settings import EnvLoader, load_settings, option, settings
 
+from conformalize.constants import RUN_VERSION_BUMP
+
 
 @settings
 class Settings:
@@ -107,6 +109,7 @@ class Settings:
     readme: bool = option(default=False, help="Set up 'README.md'")
     repo_name: str | None = option(default=None, help="Repo name")
     ruff: bool = option(default=False, help="Set up 'ruff.toml'")
+    run_version_bump: bool = option(default=RUN_VERSION_BUMP, help="Run version bump")
     script: str | None = option(
         default=None, help="Set up a script instead of a package"
     )
