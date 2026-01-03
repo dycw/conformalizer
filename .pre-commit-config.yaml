@@ -1,12 +1,11 @@
 repos:
   - repo: https://github.com/dycw/conformalize
-    rev: 0.10.10
+    rev: 0.11.0
     hooks:
       - args:
           - --description=Project conformalizer
           - --envrc
           - --envrc--uv
-          - --github--pull-request--pre-commit
           - --github--pull-request--pyright
           - --github--pull-request--pytest--os--macos
           - --github--pull-request--pytest--os--ubuntu

@@ -483,7 +483,7 @@ def _add_pre_commit_config_repo(
 ) -> None:
     repos_list = get_list(pre_commit_dict, "repos")
     repo_dict = ensure_contains_partial(
-        repos_list, {"repo": url} | ({} if url == "local" else {"rev": "master"})
+        repos_list, {"repo": url}, extra={} if url == "local" else {"rev": "master"}
     )
     hooks_list = get_list(repo_dict, "hooks")
     hook_dict = ensure_contains_partial(hooks_list, {"id": id_})
@@ -786,10 +786,13 @@ def ensure_contains(array: HasAppend, /, *objs: Any) -> None:
             array.append(obj)
 
 
-def ensure_contains_partial(container: HasAppend, dict_: StrDict, /) -> StrDict:
+def ensure_contains_partial(
+    container: HasAppend, partial: StrDict, /, *, extra: StrDict | None = None
+) -> StrDict:
     try:
-        return get_partial_dict(container, dict_, skip_log=True)
+        return get_partial_dict(container, partial, skip_log=True)
     except OneEmptyError:
+        dict_ = partial | ({} if extra is None else extra)
         container.append(dict_)
         return dict_
 
