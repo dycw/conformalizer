@@ -196,36 +196,14 @@ def add_github_pull_request_yaml(
             pre_commit_dict = get_dict(jobs, "pre-commit")
             pre_commit_dict["runs-on"] = "ubuntu-latest"
             steps = get_list(pre_commit_dict, "steps")
-            ensure_contains(
-                steps,
-                {
-                    "name": "Run 'pre-commit'",
-                    "uses": "dycw/action-pre-commit@latest",
-                    "with": {
-                        "token": "${{secrets.GITHUB_TOKEN}}",
-                        "repos": LiteralScalarString(
-                            strip_and_dedent("""
-                                dycw/conformalize
-                                pre-commit/pre-commit-hooks
-                            """)
-                        ),
-                    },
-                },
-            )
+            ensure_contains(steps, run_action_pre_commit_dict(token=True))
         if pyright:
             pyright_dict = get_dict(jobs, "pyright")
             pyright_dict["runs-on"] = "ubuntu-latest"
             steps = get_list(pyright_dict, "steps")
             steps_dict = ensure_contains_partial(
                 steps,
-                {
-                    "name": "Run 'pyright'",
-                    "uses": "dycw/action-pyright@latest",
-                    "with": {
-                        "token": "${{secrets.GITHUB_TOKEN}}",
-                        "python-version": python_version,
-                    },
-                },
+                run_action_pyright_dict(python_version=python_version, token=True),
             )
             if script is not None:
                 with_ = get_dict(steps_dict, "with")
@@ -897,6 +875,40 @@ def get_version_from_git_tag() -> Version:
 ##
 
 
+def run_action_pre_commit_dict(*, token: bool = False) -> StrDict:
+    with_: StrDict = {
+        "repos": LiteralScalarString(
+            strip_and_dedent("""
+                dycw/conformalize
+                pre-commit/pre-commit-hooks
+            """)
+        )
+    }
+    if token:
+        with_["token"] = "${{secrets.GITHUB_TOKEN}}"  # noqa: S105
+    return {
+        "name": "Run 'pre-commit'",
+        "uses": "dycw/action-pre-commit@latest",
+        "with": with_,
+    }
+
+
+def run_action_pyright_dict(
+    *, python_version: str = SETTINGS.python_version, token: bool = False
+) -> StrDict:
+    with_: StrDict = {"python-version": python_version}
+    if token:
+        with_["token"] = "${{secrets.GITHUB_TOKEN}}"  # noqa: S105
+    return {
+        "name": "Run 'pyright'",
+        "uses": "dycw/action-pyright@latest",
+        "with": with_,
+    }
+
+
+##
+
+
 def run_bump_my_version(*, modifications: MutableSet[Path] | None = None) -> None:
     def run_set_version(version: Version, /) -> None:
         LOGGER.info("Setting version to %s...", version)
@@ -1191,6 +1203,7 @@ __all__ = [
     "get_version_from_bumpversion_toml",
     "get_version_from_git_show",
     "get_version_from_git_tag",
+    "run_action_pre_commit_dict",
     "run_bump_my_version",
     "run_pre_commit_update",
     "run_ripgrep_and_replace",
