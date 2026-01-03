@@ -865,15 +865,35 @@ def run_action_pre_commit_dict(*, token: bool = False) -> StrDict:
     }
 
 
-def run_action_publish_dict(*, token: bool = False) -> StrDict:
+def run_action_publish_dict(
+    *,
+    token: bool = False,
+    username: str | None = None,
+    password: str | None = None,
+    publish_url: str | None = None,
+    trusted_publishing: bool = False,
+    native_tls: bool = False,
+) -> StrDict:
+    out: StrDict = {
+        "name": "Build and publish package",
+        "uses": "dycw/action-publish@latest",
+    }
     with_: StrDict = {}
     if token:
         with_["token"] = "${{secrets.GITHUB_TOKEN}}"  # noqa: S105
-    return {
-        "name": "Build and publish package",
-        "uses": "dycw/action-publish@latest",
-        "with": with_,
-    }
+    if username is not None:
+        with_["username"] = username
+    if password is not None:
+        with_["password"] = password
+    if publish_url is not None:
+        with_["publish-url"] = publish_url
+    if trusted_publishing:
+        with_["trusted-publishing"] = True
+    if native_tls:
+        with_["native-tls"] = True
+    if len(with_) >= 1:
+        out["with"] = with_
+    return out
 
 
 def run_action_pyright_dict(
@@ -900,21 +920,17 @@ def run_action_pytest_dict(*, token: bool = False) -> StrDict:
 
 
 def run_action_ruff_dict(*, token: bool = False) -> StrDict:
-    with_: StrDict = {}
+    out: StrDict = {"name": "Run 'ruff'", "uses": "dycw/action-ruff@latest"}
     if token:
-        with_["token"] = "${{secrets.GITHUB_TOKEN}}"  # noqa: S105
-    return {"name": "Run 'ruff'", "uses": "dycw/action-ruff@latest", "with": with_}
+        out["with"] = {"token": "${{secrets.GITHUB_TOKEN}}"}
+    return out
 
 
 def run_action_tag_dict(*, token: bool = False) -> StrDict:
-    with_: StrDict = {}
+    out: StrDict = {"name": "Tag latest commit", "uses": "dycw/action-tag@latest"}
     if token:
-        with_["token"] = "${{secrets.GITHUB_TOKEN}}"  # noqa: S105
-    return {
-        "name": "Tag latest commit",
-        "uses": "dycw/action-tag@latest",
-        "with": with_,
-    }
+        out["with"] = {"token": "${{secrets.GITHUB_TOKEN}}"}
+    return out
 
 
 ##
