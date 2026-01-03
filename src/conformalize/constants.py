@@ -23,10 +23,7 @@ RUFF_TOML = Path("ruff.toml")
 YAML_INSTANCE = YAML()
 
 
-RUN_VERSION_BUMP = not (
-    (search("template", str(REPO_ROOT)) is not None)
-    or (IS_CI and (search("conformalize", str(REPO_ROOT)) is not None))
-)
+RUN_VERSION_BUMP = (search("template", str(REPO_ROOT)) is None) and not IS_CI
 
 
 __all__ = [
