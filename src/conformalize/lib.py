@@ -367,6 +367,7 @@ def add_pre_commit_config_yaml(
     *,
     modifications: MutableSet[Path] | None = None,
     dockerfmt: bool = SETTINGS.pre_commit__dockerfmt,
+    dycw: bool = SETTINGS.pre_commit__dycw,
     prettier: bool = SETTINGS.pre_commit__prettier,
     ruff: bool = SETTINGS.pre_commit__ruff,
     shell: bool = SETTINGS.pre_commit__shell,
@@ -403,6 +404,10 @@ def add_pre_commit_config_yaml(
                 "dockerfmt",
                 args=("add", ["--newline", "--write"]),
             )
+        if dycw:
+            dycw_url = "https://github.com/dycw/actions"
+            _add_pre_commit_config_repo(dict_, dycw_url, "format-requirements")
+            _add_pre_commit_config_repo(dict_, dycw_url, "replace-sequence-strs")
         if prettier:
             _add_pre_commit_config_repo(
                 dict_,

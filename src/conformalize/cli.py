@@ -69,6 +69,7 @@ def _main(settings: Settings, /) -> None:
     add_pre_commit_config_yaml(
         modifications=modifications,
         dockerfmt=settings.pre_commit__dockerfmt,
+        dycw=settings.pre_commit__dycw,
         prettier=settings.pre_commit__prettier,
         ruff=settings.pre_commit__ruff,
         shell=settings.pre_commit__shell,

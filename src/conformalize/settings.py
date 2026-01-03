@@ -69,6 +69,9 @@ class Settings:
     pre_commit__dockerfmt: bool = option(
         default=False, help="Set up '.pre-commit-config.yaml' dockerfmt"
     )
+    pre_commit__dycw: bool = option(
+        default=False, help="Set up '.pre-commit-config.yaml' dockerfmt"
+    )
     pre_commit__prettier: bool = option(
         default=False, help="Set up '.pre-commit-config.yaml' prettier"
     )
