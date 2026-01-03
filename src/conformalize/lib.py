@@ -196,10 +196,11 @@ def add_github_pull_request_yaml(
             pre_commit_dict = get_dict(jobs, "pre-commit")
             pre_commit_dict["runs-on"] = "ubuntu-latest"
             steps = get_list(pre_commit_dict, "steps")
-            steps_dict = ensure_contains_partial(
+            ensure_contains(
                 steps,
-                {"name": "Run 'pre-commit'", "uses": "dycw/action-pre-commit@latest"},
-                extra={
+                {
+                    "name": "Run 'pre-commit'",
+                    "uses": "dycw/action-pre-commit@latest",
                     "with": {
                         "token": "${{secrets.GITHUB_TOKEN}}",
                         "repos": LiteralScalarString(
@@ -208,7 +209,7 @@ def add_github_pull_request_yaml(
                                 pre-commit/pre-commit-hooks
                             """)
                         ),
-                    }
+                    },
                 },
             )
         if pyright:
@@ -217,12 +218,13 @@ def add_github_pull_request_yaml(
             steps = get_list(pyright_dict, "steps")
             steps_dict = ensure_contains_partial(
                 steps,
-                {"name": "Run 'pyright'", "uses": "dycw/action-pyright@latest"},
-                extra={
+                {
+                    "name": "Run 'pyright'",
+                    "uses": "dycw/action-pyright@latest",
                     "with": {
                         "token": "${{secrets.GITHUB_TOKEN}}",
                         "python-version": python_version,
-                    }
+                    },
                 },
             )
             if script is not None:
@@ -249,13 +251,14 @@ def add_github_pull_request_yaml(
             steps = get_list(pytest_dict, "steps")
             steps_dict = ensure_contains_partial(
                 steps,
-                {"name": "Run 'pytest'", "uses": "dycw/action-pytest@latest"},
-                extra={
+                {
+                    "name": "Run 'pytest'",
+                    "uses": "dycw/action-pytest@latest",
                     "with": {
                         "token": "${{secrets.GITHUB_TOKEN}}",
                         "python-version": "${{matrix.python-version}}",
                         "resolution": "${{matrix.resolution}}",
-                    }
+                    },
                 },
             )
             if script is not None:
@@ -334,8 +337,8 @@ def add_github_push_yaml(
                 {
                     "name": "Build and publish package",
                     "uses": "dycw/action-publish@latest",
+                    "with": {"token": "${{secrets.GITHUB_TOKEN}}"},
                 },
-                extra={"with": {"token": "${{secrets.GITHUB_TOKEN}}"}},
             )
             if publish__trusted_publishing:
                 with_ = get_dict(steps_dict, "with")
@@ -346,8 +349,11 @@ def add_github_push_yaml(
             steps = get_list(tag_dict, "steps")
             steps_dict = ensure_contains_partial(
                 steps,
-                {"name": "Tag latest commit", "uses": "dycw/action-tag@latest"},
-                extra={"with": {"token": "${{secrets.GITHUB_TOKEN}}"}},
+                {
+                    "name": "Tag latest commit",
+                    "uses": "dycw/action-tag@latest",
+                    "with": {"token": "${{secrets.GITHUB_TOKEN}}"},
+                },
             )
             if tag__major_minor:
                 with_ = get_dict(steps_dict, "with")
@@ -477,7 +483,7 @@ def _add_pre_commit_config_repo(
 ) -> None:
     repos_list = get_list(pre_commit_dict, "repos")
     repo_dict = ensure_contains_partial(
-        repos_list, {"repo": url}, extra={} if url == "local" else {"rev": "master"}
+        repos_list, {"repo": url} | ({} if url == "local" else {"rev": "master"})
     )
     hooks_list = get_list(repo_dict, "hooks")
     hook_dict = ensure_contains_partial(hooks_list, {"id": id_})
@@ -780,13 +786,10 @@ def ensure_contains(array: HasAppend, /, *objs: Any) -> None:
             array.append(obj)
 
 
-def ensure_contains_partial(
-    container: HasAppend, partial: StrDict, /, *, extra: StrDict | None = None
-) -> StrDict:
+def ensure_contains_partial(container: HasAppend, dict_: StrDict, /) -> StrDict:
     try:
-        return get_partial_dict(container, partial, skip_log=True)
+        return get_partial_dict(container, dict_, skip_log=True)
     except OneEmptyError:
-        dict_ = partial | ({} if extra is None else extra)
         container.append(dict_)
         return dict_
 
